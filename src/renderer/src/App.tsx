@@ -11,6 +11,7 @@ import SettingsDialog from './components/settings/SettingsDialog'
 import SearchPalette from './components/search/SearchPalette'
 import Dashboard from './components/dashboard/Dashboard'
 import ExportDialog from './components/export/ExportDialog'
+import FindReplaceDialog from './components/find/FindReplaceDialog'
 import { parseToc } from '../../shared/utils/toc'
 import type { ExportFormat, RelatedNotes } from '../../shared/types/export'
 import { runEditorAction } from './lib/editor-actions'
@@ -55,6 +56,7 @@ export default function App(): ReactElement {
   const [showSidebar, setShowSidebar] = useState(true)
   const [showStatus, setShowStatus] = useState(true)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('md')
+  const [findOpen, setFindOpen] = useState(false)
   const [dueCount, setDueCount] = useState(0)
   const [error, setError] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -223,6 +225,9 @@ export default function App(): ReactElement {
       if (e.key === ',') {
         e.preventDefault()
         setSettingsOpen(true)
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault()
+        setFindOpen(true)
       } else if (e.key === 'k' || e.key === 'K') {
         e.preventDefault()
         setSearchOpen(true)
@@ -281,9 +286,10 @@ export default function App(): ReactElement {
     return [...g.entries()]
   }, [shown])
 
-  // —— 左栏文件区右键快捷菜单（文件菜单子集）——
+  // —— 左栏文件区右键快捷菜单（标准文件/文件夹操作）——
   interface CtxAction {
     label: string
+    disabled?: boolean
     run(): void
   }
   interface CtxState {
@@ -292,6 +298,7 @@ export default function App(): ReactElement {
     actions: CtxAction[]
   }
   const [ctx, setCtx] = useState<CtxState | null>(null)
+  const [clip, setClip] = useState<{ id: string; src: string; cut: boolean } | null>(null)
 
   useEffect(() => {
     if (!ctx) return
@@ -309,19 +316,97 @@ export default function App(): ReactElement {
   }, [ctx])
 
   const ctxPos = (e: ReactMouseEvent): { x: number; y: number } => ({
-    x: Math.min(e.clientX, window.innerWidth - 200),
-    y: Math.min(e.clientY, window.innerHeight - 140)
+    x: Math.min(e.clientX, window.innerWidth - 240),
+    y: Math.min(e.clientY, window.innerHeight - 320)
   })
+
+  const sepAction = (k: string): CtxAction => ({ label: k, disabled: true, run: () => undefined })
+
+  const renameNote = async (noteId: string): Promise<void> => {
+    const cur = summaries.find((s) => s.noteId === noteId)
+    const name = window.prompt('新的题解标题：', cur?.title)
+    if (!name?.trim()) return
+    try {
+      const note = await api?.notes.get(noteId)
+      if (!note) return
+      await api?.notes.save({ noteId, meta: { ...note.meta, title: name.trim() }, bodyMd: note.bodyMd })
+      void loadSummaries()
+      if (active?.noteId === noteId) setActive((p) => (p ? { ...p, meta: { ...p.meta, title: name.trim() } } : p))
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  const deleteFor = async (noteId: string): Promise<void> => {
+    if (!window.confirm(`删除题解 ${noteId}？文件将被永久删除，不可恢复。`)) return
+    try {
+      await api?.notes.delete(noteId)
+      if (active?.noteId === noteId) setActive(null)
+      void loadSummaries()
+      void refreshDue()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  const pasteTo = async (folder: string): Promise<void> => {
+    const c = clip
+    if (!c) return
+    try {
+      const note = await api?.notes.get(c.id)
+      if (!note) return
+      await api?.notes.create({ meta: { ...note.meta, source: folder, createdAt: '', updatedAt: '' }, bodyMd: note.bodyMd })
+      if (c.cut) {
+        await api?.notes.delete(c.id)
+        setClip(null)
+      }
+      void loadSummaries()
+      void refreshDue()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
 
   const openNoteCtx = (e: ReactMouseEvent, noteId: string): void => {
     e.preventDefault()
     e.stopPropagation()
+    const source = noteId.split('/')[0]
+    const same = clip?.src === source
     setCtx({
       ...ctxPos(e),
       actions: [
-        { label: '打开', run: () => void openNote(noteId) },
-        { label: '另存为…', run: () => void openNote(noteId).then(() => setSaveAsOpen(true)) },
-        { label: '快速记录…', run: () => setCaptureOpen(true) }
+        { label: '新建文件', run: () => setCaptureOpen(true) },
+        { label: '新建文件夹', run: () => setError('新建文件夹：目录按 source 自动分组，暂不支持手动建夹') },
+        sepAction('__s1'),
+        { label: '在资源管理器中显示', run: () => void api?.notes.reveal({ kind: 'file', noteId }) },
+        sepAction('__s2'),
+        { label: '剪切', run: () => setClip({ id: noteId, src: source, cut: true }) },
+        { label: '复制', run: () => setClip({ id: noteId, src: source, cut: false }) },
+        { label: '粘贴', disabled: !clip || same, run: () => void pasteTo(source) },
+        sepAction('__s3'),
+        { label: '重命名', run: () => void renameNote(noteId) },
+        { label: '删除', run: () => void deleteFor(noteId) }
+      ]
+    })
+  }
+  const openFolderCtx = (e: ReactMouseEvent, folder: string): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    const same = clip?.src === folder
+    setCtx({
+      ...ctxPos(e),
+      actions: [
+        { label: '新建文件', run: () => setCaptureOpen(true) },
+        { label: '新建文件夹', run: () => setError('新建文件夹：目录按 source 自动分组，暂不支持手动建夹') },
+        sepAction('__f1'),
+        { label: '在资源管理器中显示', run: () => void api?.notes.reveal({ kind: 'folder', folder }) },
+        sepAction('__f2'),
+        { label: '剪切', disabled: true, run: () => undefined },
+        { label: '复制', disabled: true, run: () => undefined },
+        { label: '粘贴', disabled: !clip || same, run: () => void pasteTo(folder) },
+        sepAction('__f3'),
+        { label: '重命名', disabled: true, run: () => undefined },
+        { label: '删除', disabled: true, run: () => undefined }
       ]
     })
   }
@@ -330,8 +415,17 @@ export default function App(): ReactElement {
     setCtx({
       ...ctxPos(e),
       actions: [
-        { label: '快速记录…', run: () => setCaptureOpen(true) },
-        { label: '刷新列表', run: () => void loadSummaries() }
+        { label: '新建文件', run: () => setCaptureOpen(true) },
+        { label: '新建文件夹', run: () => setError('新建文件夹：目录按 source 自动分组，暂不支持手动建夹') },
+        sepAction('__p1'),
+        { label: '在资源管理器中显示', disabled: true, run: () => undefined },
+        sepAction('__p2'),
+        { label: '剪切', disabled: true, run: () => undefined },
+        { label: '复制', disabled: true, run: () => undefined },
+        { label: '粘贴', disabled: true, run: () => undefined },
+        sepAction('__p3'),
+        { label: '重命名', disabled: true, run: () => undefined },
+        { label: '删除', disabled: true, run: () => undefined }
       ]
     })
   }
@@ -401,6 +495,12 @@ export default function App(): ReactElement {
       case 'open-dashboard':
         setDashboardOpen(true)
         break
+      case 'find-open':
+      case 'find-next':
+      case 'find-prev':
+      case 'find-replace':
+        setFindOpen(true)
+        break
       case 'toggle-filebar':
       case 'toggle-filetree':
         setShowSidebar((v) => !v)
@@ -464,7 +564,12 @@ export default function App(): ReactElement {
             {groups.length === 0 && <p className="px-2 py-4 text-xs text-neutral-600">还没有题解，Ctrl+Shift+N 新建</p>}
             {groups.map(([folder, items]) => (
               <div key={folder} className="mb-2">
-                <p className="px-1 py-0.5 text-[11px] font-medium text-neutral-500">📁 {folder}</p>
+                <p
+                  className="cursor-default px-1 py-0.5 text-[11px] font-medium text-neutral-500"
+                  onContextMenu={(e) => openFolderCtx(e, folder)}
+                >
+                  📁 {folder}
+                </p>
                 {items.map((s) => (
                   <button
                     key={s.noteId}
@@ -729,6 +834,7 @@ export default function App(): ReactElement {
           }}
         />
       )}
+      {findOpen && <FindReplaceDialog onClose={() => setFindOpen(false)} />}
       {searchOpen && (
         <SearchPalette
           onPick={(noteId) => {
@@ -754,19 +860,24 @@ export default function App(): ReactElement {
           className="ak-ctx-menu fixed z-[60] min-w-44 rounded border border-neutral-700 bg-neutral-900 py-1 shadow-2xl"
           style={{ left: ctx.x, top: ctx.y }}
         >
-          {ctx.actions.map((a) => (
-            <button
-              key={a.label}
-              type="button"
-              className="block w-full px-3 py-1.5 text-left text-[13px] text-neutral-200 hover:bg-neutral-800"
-              onClick={() => {
-                a.run()
-                setCtx(null)
-              }}
-            >
-              {a.label}
-            </button>
-          ))}
+          {ctx.actions.map((a) =>
+            a.label.startsWith('__') ? (
+              <div key={a.label} className="mx-2 my-1 border-t border-neutral-800" />
+            ) : (
+              <button
+                key={a.label}
+                type="button"
+                disabled={a.disabled}
+                className="block w-full px-3 py-1.5 text-left text-[13px] text-neutral-200 hover:bg-neutral-800 disabled:text-neutral-600 disabled:hover:bg-transparent"
+                onClick={() => {
+                  if (!a.disabled) a.run()
+                  setCtx(null)
+                }}
+              >
+                {a.label}
+              </button>
+            )
+          )}
         </div>
       )}
     </div>

@@ -111,3 +111,15 @@ body {
 .ak-scroll::-webkit-scrollbar-thumb:hover {
   background: #52525b;
 }
+
+/* 编辑区占满容器 + 内容超高时内部滚动（IDE 式） */
+.ak-scroll > div {
+  min-height: 100%;
+}
+.ak-editor,
+.ak-editor .ProseMirror {
+  min-height: 100%;
+}
+.ak-scroll {
+  height: 100%;
+}

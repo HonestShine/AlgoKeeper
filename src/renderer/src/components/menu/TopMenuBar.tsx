@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ReactElement } from 'react'
+import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 
 export interface TopMenuBarProps {
   dueCount: number
@@ -108,7 +108,12 @@ const GROUPS: MenuGroup[] = [
       {
         key: 'find',
         label: '查找和替换',
-        sub: [t('find-open', '查找…'), t('find-next', '查找下一个'), t('find-prev', '查找上一个'), t('find-replace', '替换')]
+        sub: [
+          item('find-open', '查找…', { shortcut: 'Ctrl+F' }),
+          item('find-next', '查找下一个', { shortcut: 'Enter' }),
+          item('find-prev', '查找上一个'),
+          item('find-replace', '替换')
+        ]
       }
     ]
   },
@@ -203,14 +208,19 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
   // 钻取栈：每层为 { title, items }
   const [stack, setStack] = useState<Array<{ title: string; items: MItem[] }>>([])
 
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null)
+
   const closeAll = (): void => {
     setOpenGroup(null)
     setStack([])
+    setAnchor(null)
   }
 
-  const openTop = (g: MenuGroup): void => {
+  const openTop = (g: MenuGroup, e: ReactMouseEvent<HTMLButtonElement>): void => {
     if (openGroup === g.label) closeAll()
     else {
+      const r = e.currentTarget.getBoundingClientRect()
+      setAnchor({ x: r.left, y: r.bottom + 2 })
       setOpenGroup(g.label)
       setStack([{ title: g.label, items: g.items }])
     }
@@ -238,7 +248,7 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
         <button
           key={g.label}
           type="button"
-          onClick={() => openTop(g)}
+          onClick={(e) => openTop(g, e)}
           className={`relative z-50 rounded px-2.5 py-1 hover:bg-neutral-800 ${openGroup === g.label ? 'bg-neutral-800' : ''}`}
         >
           {g.label}
@@ -248,7 +258,10 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
       {openGroup && (
         <>
           <div className="fixed inset-0 z-40" onClick={closeAll} />
-          <div className="fixed left-0 top-[26px] z-50 rounded border border-neutral-700 bg-neutral-900 py-1 shadow-2xl">
+          <div
+            className="fixed z-50 rounded border border-neutral-700 bg-neutral-900 py-1 shadow-2xl"
+            style={anchor ? { left: Math.min(anchor.x, window.innerWidth - 280), top: anchor.y } : { left: 0, top: 0, display: 'none' }}
+          >
             {inSub && (
               <button
                 type="button"

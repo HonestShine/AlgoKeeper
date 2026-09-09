@@ -1,8 +1,9 @@
-import { dialog, ipcMain } from 'electron'
+import { dialog, ipcMain, shell } from 'electron'
+import { join } from 'node:path'
 import { CH } from '../../shared/ipc/channels'
 import { parseProblemUrl } from '../../shared/utils/url'
 import { getSettings, updateSettings } from '../services/settings-store'
-import { createNote, deleteNote, listNotes, readNote, saveAsNote, saveNote } from '../services/note-store'
+import { createNote, deleteNote, listNotes, noteFilePath, readNote, saveAsNote, saveNote } from '../services/note-store'
 import { collectDue, commitReviews } from '../services/srs-store'
 import { indexNote, recordReviewLogs } from '../services/indexer'
 import { searchNotes } from '../services/search-service'
@@ -84,6 +85,11 @@ export function registerIpc(): void {
     const root = await currentRoot()
     await deleteNote(root, noteId)
     await indexNote(root, noteId)
+  })
+  reg(CH.notesReveal, async (p: { kind: 'file' | 'folder'; noteId?: string; folder?: string }) => {
+    const root = await currentRoot()
+    if (p.kind === 'file' && p.noteId) shell.showItemInFolder(noteFilePath(root, p.noteId))
+    else if (p.kind === 'folder' && p.folder) await shell.openPath(join(root, p.folder))
   })
   reg(CH.exportRun, async (req: ExportRequest) => {
     const root = await currentRoot()

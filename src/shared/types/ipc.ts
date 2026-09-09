@@ -35,6 +35,8 @@ export interface RendererApi {
     related(noteId: string): Promise<RelatedNotes>
     /** 删除题解文件（不可恢复；调用方须先确认） */
     delete(noteId: string): Promise<void>
+    /** 在系统文件管理器中显示文件/文件夹 */
+    reveal(p: { kind: 'file' | 'folder'; noteId?: string; folder?: string }): Promise<void>
   }
 
   /** 间隔重复复习 */

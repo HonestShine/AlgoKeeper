@@ -259,6 +259,9 @@ export function installFakeApi(): RendererApi {
       delete: async (noteId: string) => {
         notes = notes.filter((n) => n.noteId !== noteId)
         persist(notes)
+      },
+      reveal: async () => {
+        /* 网页环境无法显示文件管理器 */
       }
     },
     review: {
