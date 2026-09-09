@@ -58,6 +58,7 @@ export default function App(): ReactElement {
   const [showStatus, setShowStatus] = useState(true)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('md')
   const [findOpen, setFindOpen] = useState(false)
+  const [notice, setNotice] = useState('')
   const [outlineOpen, setOutlineOpen] = useState(false)
   const [sourceOpen, setSourceOpen] = useState(false)
   const [dueCount, setDueCount] = useState(0)
@@ -66,6 +67,7 @@ export default function App(): ReactElement {
   const [tagDraft, setTagDraft] = useState('')
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
   const booted = useRef(false)
+  const noticeTimer = useRef<number | null>(null)
 
   const loadSummaries = useCallback(async (): Promise<void> => {
     if (!api) return
@@ -155,6 +157,13 @@ export default function App(): ReactElement {
   useEffect(() => {
     document.documentElement.dataset.theme = settings?.theme ?? 'light-github'
   }, [settings?.theme])
+
+  // 轻提示（toast）：短暂显示后自动消失
+  const note = (msg: string): void => {
+    setNotice(msg)
+    if (noticeTimer.current) window.clearTimeout(noticeTimer.current)
+    noticeTimer.current = window.setTimeout(() => setNotice(''), 2600)
+  }
 
   const saveTheme = (theme: 'dark' | 'light-github'): void => {
     void api?.settings.set({ theme }).then((r) => r && setSettings(r.settings))
@@ -586,6 +595,11 @@ export default function App(): ReactElement {
       case 'open-dashboard':
         setDashboardOpen(true)
         break
+      case 'image-open':
+      case 'image-settings':
+      case 'image-delete':
+        note('图片请用「插入图片…」链接本地 .images/ 目录的文件，或到文件管理器中操作')
+        break
       case 'theme-dark':
         saveTheme('dark')
         break
@@ -647,6 +661,11 @@ export default function App(): ReactElement {
           <button className="text-red-200 hover:text-white" onClick={() => setError('')} type="button">
             ✕
           </button>
+        </div>
+      )}
+      {notice && (
+        <div className="pointer-events-none fixed left-1/2 top-14 z-[70] -translate-x-1/2 rounded-full border border-neutral-700 bg-neutral-800 px-4 py-1.5 text-xs text-neutral-200 shadow-lg">
+          {notice}
         </div>
       )}
       <TopMenuBar

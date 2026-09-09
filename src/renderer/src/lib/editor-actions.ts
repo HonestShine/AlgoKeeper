@@ -236,11 +236,6 @@ export function runEditorAction(id: string): boolean {
       editor.chain().focus().insertContent('\n\n<!-- 元数据在文件头部 Frontmatter 中编辑 -->\n').run()
       return true
     }
-    case 'image-open':
-    case 'image-settings':
-    case 'image-delete': {
-      return true
-    }
     default:
       return false
   }
