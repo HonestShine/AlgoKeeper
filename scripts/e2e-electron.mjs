@@ -13,11 +13,10 @@ import assert from 'node:assert'
 const root = process.cwd()
 const ELECTRON = join(root, 'node_modules', 'electron', 'dist', 'electron.exe')
 const id = 'two-sum-e2e'
-const noteId = `leetcode/${id}`
 const file = join(root, 'Documents', 'leetcode', `${id}.md`)
 
 function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms))
+  return new Promise((r) => globalThis.setTimeout(r, ms))
 }
 
 async function waitFile(path, ms = 10000) {

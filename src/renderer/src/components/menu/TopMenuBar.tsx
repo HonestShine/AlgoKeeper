@@ -137,7 +137,7 @@ const GROUPS: MenuGroup[] = [
           e('table-delete', '删除表格')
         ]
       },
-      t('formula-block', '公式块'),
+      item('formula-block', '公式块'),
       e('code-block', '代码块'),
       {
         key: 'callout',
@@ -159,7 +159,7 @@ const GROUPS: MenuGroup[] = [
     label: '格式',
     items: [
       e('bold', '加粗'), e('italic', '斜体'), e('underline', '下划线'), e('code', '代码'),
-      t('math-inline', '内联公式'), e('highlight', '高亮'), e('sup', '上标'), e('sub', '下标'),
+      item('math-inline', '内联公式'), e('highlight', '高亮'), e('sup', '上标'), e('sub', '下标'),
       t('comment', '注释'), e('link', '超链接'),
       {
         key: 'image',
@@ -174,10 +174,10 @@ const GROUPS: MenuGroup[] = [
     items: [
       item('toggle-filebar', '显示/隐藏文件管理栏'),
       t('outline', '大纲'),
-      t('docs-list', '文档列表'),
+      item('docs-list', '文档列表'),
       item('toggle-filetree', '文件树'),
       item('open-search', '搜索', { shortcut: 'Ctrl+K' }),
-      t('source', '源代码模式'),
+      item('source-mode', '源代码模式', { shortcut: 'Ctrl+/' }),
       item('toggle-statusbar', '显示状态栏')
     ]
   },

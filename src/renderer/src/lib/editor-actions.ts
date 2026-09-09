@@ -18,6 +18,14 @@ export function runEditorAction(id: string): boolean {
       chain(editor).toggleHeading({ level: Number(id[1]) as 1 | 2 | 3 | 4 | 5 | 6 }).run()
       return true
     case 'code-block': chain(editor).toggleCodeBlock().run(); return true
+    case 'formula-block': {
+      editor.chain().focus().insertContent('$$\nE = mc^2\n$$').run()
+      return true
+    }
+    case 'math-inline': {
+      editor.chain().focus().insertContent('$x^2$').run()
+      return true
+    }
     case 'blockquote': chain(editor).toggleBlockquote().run(); return true
     case 'olist': chain(editor).toggleOrderedList().run(); return true
     case 'ulist': chain(editor).toggleBulletList().run(); return true

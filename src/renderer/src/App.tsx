@@ -57,6 +57,7 @@ export default function App(): ReactElement {
   const [showStatus, setShowStatus] = useState(true)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('md')
   const [findOpen, setFindOpen] = useState(false)
+  const [sourceOpen, setSourceOpen] = useState(false)
   const [dueCount, setDueCount] = useState(0)
   const [error, setError] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -495,6 +496,13 @@ export default function App(): ReactElement {
       case 'open-dashboard':
         setDashboardOpen(true)
         break
+      case 'source-mode':
+        if (active && mode !== 'edit') setMode('edit')
+        setSourceOpen((v) => !v)
+        break
+      case 'docs-list':
+        setShowSidebar((v) => !v)
+        break
       case 'find-open':
       case 'find-next':
       case 'find-prev':
@@ -632,7 +640,19 @@ export default function App(): ReactElement {
           <section className="min-h-0 flex-1 bg-neutral-950">
             {active ? (
               mode === 'edit' ? (
-                <EditorSurface md={active.md} editable onDocChange={(md) => { setActive((p) => (p ? { ...p, md } : p)); setDirty(true) }} />
+                sourceOpen ? (
+                  <textarea
+                    value={active.md}
+                    spellCheck={false}
+                    onChange={(e) => {
+                      setActive((p) => (p ? { ...p, md: e.target.value } : p))
+                      setDirty(true)
+                    }}
+                    className="block h-full w-full resize-none bg-neutral-950 p-4 font-mono text-[13px] leading-relaxed text-neutral-200 focus:outline-none"
+                  />
+                ) : (
+                  <EditorSurface md={active.md} editable onDocChange={(md) => { setActive((p) => (p ? { ...p, md } : p)); setDirty(true) }} />
+                )
               ) : (
                 <div className="flex h-full">
                   {toc.length > 0 && (
