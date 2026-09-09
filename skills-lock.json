@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "electron-builder": {
+      "source": "pedronauck/skills",
+      "sourceType": "github",
+      "skillPath": "skills/community/electron-builder/SKILL.md",
+      "computedHash": "ecc23906ac23271fd9b20020b4d29bb6d5440abfa9d474787ae79c595ef18caa"
+    },
+    "spaced-repetition": {
+      "source": "yugash007/edu-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/spaced-repetition/SKILL.md",
+      "computedHash": "5f41c28b693da13bd4932d7de8c58d07b8cf1fbf2b241fbcb18472ec37b4c015"
+    },
+    "tiptap": {
+      "source": "ueberdosis/tiptap",
+      "sourceType": "github",
+      "skillPath": "skills/tiptap/SKILL.md",
+      "computedHash": "711e1269a07973fb2645337fa4b4eacfb2afab188911105b1090d0d7de138b9c"
+    }
+  }
+}

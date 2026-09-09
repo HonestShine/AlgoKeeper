@@ -1,0 +1,22 @@
+appId: com.algokeeper.app
+productName: AlgoKeeper
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**
+  - resources/**
+asar: true
+win:
+  target: nsis
+  executableName: algokeeper
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target: dmg
+  category: public.app-category.developer-tools
+linux:
+  target: AppImage
+  category: Utility
+npmRebuild: true
