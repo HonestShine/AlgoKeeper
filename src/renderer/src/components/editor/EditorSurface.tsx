@@ -87,6 +87,40 @@ export default function EditorSurface({ md, editable, onDocChange }: EditorSurfa
     if (editor) editor.setEditable(editable)
   }, [editable, editor])
 
+  // 警告框彩化：DOM 装饰层（不改 schema，round-trip 安全）；块引用首行 `[!type]` 上色
+  useEffect(() => {
+    if (!editor) return
+    const decorate = (): void => {
+      const container = editor.view?.dom as HTMLElement | undefined
+      if (!container) return
+      container.querySelectorAll('blockquote').forEach((bq) => {
+        const e = bq as HTMLElement
+        const cls = Array.from(e.classList).filter((c) => c.startsWith('ak-callout'))
+        e.classList.remove(...cls)
+        const m = /^\[!(\w+)\]/.exec((e.textContent ?? '').trimStart())
+        if (m) e.classList.add('ak-callout', `ak-callout-${m[1].toLowerCase()}`)
+      })
+    }
+    decorate()
+    let observer: MutationObserver | null = null
+    const ensureObserver = (): void => {
+      const container = editor.view?.dom as HTMLElement | undefined
+      if (!container || observer) return
+      observer = new MutationObserver(decorate)
+      observer.observe(container, { childList: true, subtree: true, characterData: true })
+    }
+    ensureObserver()
+    const boot = globalThis.setInterval(() => {
+      ensureObserver()
+      decorate()
+      if (observer) globalThis.clearInterval(boot)
+    }, 200)
+    return () => {
+      globalThis.clearInterval(boot)
+      observer?.disconnect()
+    }
+  }, [editor])
+
   const btn = useCallback(
     (label: string, title: string, run: () => void): ReactElement => (
       <button

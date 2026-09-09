@@ -239,3 +239,68 @@ body {
 [data-theme='light-github'] .rounded-lg.border {
   background-color: #ffffff;
 }
+
+/* ===== 警告框彩化（块引用首行 [!type]，DOM 装饰 .ak-callout-*）===== */
+.ak-editor blockquote.ak-callout {
+  border-left-width: 4px;
+  border-left-style: solid;
+  padding-left: 0.75em;
+}
+.ak-editor blockquote.ak-callout-note {
+  border-left-color: #0969da;
+}
+.ak-editor blockquote.ak-callout-tip {
+  border-left-color: #1a7f37;
+}
+.ak-editor blockquote.ak-callout-important {
+  border-left-color: #8250df;
+}
+.ak-editor blockquote.ak-callout-warning {
+  border-left-color: #9a6700;
+}
+.ak-editor blockquote.ak-callout-caution {
+  border-left-color: #cf222e;
+}
+
+/* ===== 浅色主题：强调色对比度与遗漏表面精修 ===== */
+[data-theme='light-github'] .text-emerald-400 {
+  color: #0e8a48;
+}
+[data-theme='light-github'] .text-amber-400 {
+  color: #9a6700;
+}
+[data-theme='light-github'] .text-rose-400 {
+  color: #cf222e;
+}
+[data-theme='light-github'] .text-sky-400 {
+  color: #0969da;
+}
+[data-theme='light-github'] .text-red-300,
+[data-theme='light-github'] .text-red-400 {
+  color: #cf222e;
+}
+[data-theme='light-github'] .bg-neutral-900\/70 {
+  background-color: rgb(246 248 250 / 0.7);
+}
+[data-theme='light-github'] .bg-neutral-900\/60 {
+  background-color: rgb(246 248 250 / 0.6);
+}
+[data-theme='light-github'] .bg-red-950\/40 {
+  background-color: rgb(255 235 233 / 0.6);
+}
+[data-theme='light-github'] .border-neutral-800\/60 {
+  border-color: rgb(208 215 222 / 0.6);
+}
+[data-theme='light-github'] .hover\:border-neutral-700:hover {
+  border-color: #d0d7de;
+}
+[data-theme='light-github'] .bg-black\/50,
+[data-theme='light-github'] .bg-black\/40 {
+  background-color: rgb(27 31 35 / 0.35);
+}
+[data-theme='light-github'] .disabled\:opacity-40:disabled {
+  opacity: 0.45;
+}
+[data-theme='light-github'] .ak-editor .hljs {
+  background: #f6f8fa;
+}
