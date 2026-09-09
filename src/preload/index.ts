@@ -22,6 +22,11 @@ const api: RendererApi = {
     newWindow: () => invoke<void>(CH.appNewWindow)
   },
 
+  clipboard: {
+    write: (p) => invoke<void>(CH.clipboardWrite, p),
+    readText: () => invoke<string>(CH.clipboardRead)
+  },
+
   settings: {
     get: () => invoke(CH.settingsGet),
     set: (p) => invoke(CH.settingsSet, p),

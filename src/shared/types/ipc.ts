@@ -15,6 +15,12 @@ export interface RendererApi {
     newWindow(): Promise<void>
   }
 
+  /** 剪贴板（走主进程，避免渲染端权限限制） */
+  clipboard: {
+    write(p: { html?: string; text?: string }): Promise<void>
+    readText(): Promise<string>
+  }
+
   /** 设置与目录 */
   settings: {
     /** 读取当前设置；确保默认 <appRoot>/Documents 存在 */

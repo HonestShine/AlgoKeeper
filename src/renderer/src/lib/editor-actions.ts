@@ -20,6 +20,26 @@ function htmlSelection(editor: Editor): string {
   return div.innerHTML
 }
 
+/** 剪贴板写入：HTML 富文本用 navigator（Electron 已授权则保留格式），否则主进程纯文本兜底 */
+function clipWrite(html?: string, text?: string): void {
+  if (html) {
+    void navigator.clipboard
+      .write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([text ?? ''], { type: 'text/plain' }) })])
+      .catch(() => {
+        if (window.api) void window.api.clipboard.write({ html: undefined, text })
+        else if (text) void navigator.clipboard.writeText(text).catch(() => undefined)
+      })
+    return
+  }
+  if (window.api) void window.api.clipboard.write({ html: undefined, text })
+  else if (text) void navigator.clipboard.writeText(text).catch(() => undefined)
+}
+
+function clipRead(): Promise<string> {
+  if (window.api) return window.api.clipboard.readText()
+  return navigator.clipboard.readText().catch(() => '')
+}
+
 /** 编辑命令：能执行的返回 true，不能（无编辑器/只读/未实现）返回 false。 */
 export function runEditorAction(id: string): boolean {
   const editor = getActiveEditor()
@@ -108,41 +128,35 @@ export function runEditorAction(id: string): boolean {
     }
     // —— 剪贴板（富文本 / HTML / 纯文本 分格式）——
     case 'copy': {
-      // 富文本（系统剪贴板 HTML+文本）→ 粘贴到别处保留格式
+      // 富文本（HTML+文本）→ 粘贴到别处保留格式
       const plain = plainSelection(editor)
       const html = htmlSelection(editor)
-      void navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })]).catch(() => {
-        if (plain) void navigator.clipboard.writeText(plain)
-      })
+      clipWrite(html, plain)
       return true
     }
     case 'copy-html': {
       const plain = plainSelection(editor)
       const html = htmlSelection(editor)
-      void navigator.clipboard
-        .write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })])
-        .catch(() => {
-          if (plain) void navigator.clipboard.writeText(plain)
-        })
+      clipWrite(html, plain)
       return true
     }
     case 'copy-text':
     case 'copy-markdown':
     case 'copy-image': {
       const t = plainSelection(editor)
-      if (t) void navigator.clipboard.writeText(t)
+      if (t) clipWrite(undefined, t)
       return true
     }
     case 'cut': {
       const { from, to } = editor.state.selection
       const t = editor.state.doc.textBetween(from, to, '\n')
-      if (t) void navigator.clipboard.writeText(t)
+      if (t) clipWrite(undefined, t)
       chain(editor).deleteSelection().run()
       return true
     }
     case 'paste':
     case 'paste-text': {
-      void navigator.clipboard.readText().then((t) => {
+      void clipRead().then((t) => {
         if (t && editor.isEditable) editor.chain().focus().insertContent(t).run()
       })
       return true

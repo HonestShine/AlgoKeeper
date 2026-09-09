@@ -180,6 +180,27 @@ export function installFakeApi(): RendererApi {
     ping: async () => 'pong',
     versions: { electron: '(fake)', node: '' },
     window: { newWindow: async () => undefined },
+    clipboard: {
+      write: async (p) => {
+        const text = p.text ?? ''
+        try {
+          if (p.html) {
+            await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([p.html], { type: 'text/html' }), 'text/plain': new Blob([text], { type: 'text/plain' }) })])
+          } else if (text) {
+            await navigator.clipboard.writeText(text)
+          }
+        } catch {
+          if (text) await navigator.clipboard.writeText(text).catch(() => undefined)
+        }
+      },
+      readText: async () => {
+        try {
+          return await navigator.clipboard.readText()
+        } catch {
+          return ''
+        }
+      }
+    },
     settings: {
       get: async () => ({ settings: readSettingsSync() }),
       set: async (p) => {

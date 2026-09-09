@@ -10,6 +10,8 @@ export const CH = {
   notesCreate: 'notes:create',
   notesSave: 'notes:save',
   notesSaveAs: 'notes:save-as',
+  clipboardWrite: 'clipboard:write',
+  clipboardRead: 'clipboard:read',
   notesDelete: 'notes:delete',
   notesReveal: 'notes:reveal',
   notesImport: 'notes:import',

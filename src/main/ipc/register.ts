@@ -1,4 +1,4 @@
-import { dialog, ipcMain, shell } from 'electron'
+import { clipboard, dialog, ipcMain, shell } from 'electron'
 import { promises as fs } from 'node:fs'
 import { basename, join } from 'node:path'
 import { CH } from '../../shared/ipc/channels'
@@ -50,6 +50,12 @@ async function withDefaultLimit(filter: ReviewFilter = {}): Promise<ReviewFilter
 
 export function registerIpc(): void {
   reg(CH.ping, async () => 'pong')
+
+  reg(CH.clipboardWrite, async (p: { html?: string; text?: string }) => {
+    // Electron ≥30 剪贴板为异步 W3C API（仅文本；HTML 富文本由渲染端 ClipboardItem 回退）
+    await clipboard.writeText(p.text ?? '')
+  })
+  reg(CH.clipboardRead, async () => clipboard.readText())
 
   reg(CH.settingsGet, async () => ({ settings: await getSettings() }))
   reg(CH.settingsSet, async (payload: SettingsUpdate) => {
