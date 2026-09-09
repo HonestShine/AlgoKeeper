@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
+import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 import type { AppSettings } from '../../shared/types/settings'
 import type { Difficulty, FileMeta, LoadedNote, NoteStatus, NoteSummary } from '../../shared/types/note'
 import EditorSurface from './components/editor/EditorSurface'
@@ -241,6 +241,61 @@ export default function App(): ReactElement {
     return [...g.entries()]
   }, [shown])
 
+  // —— 左栏文件区右键快捷菜单（文件菜单子集）——
+  interface CtxAction {
+    label: string
+    run(): void
+  }
+  interface CtxState {
+    x: number
+    y: number
+    actions: CtxAction[]
+  }
+  const [ctx, setCtx] = useState<CtxState | null>(null)
+
+  useEffect(() => {
+    if (!ctx) return
+    const close = (e: Event): void => {
+      const t = e.target as HTMLElement | null
+      if (t && !t.closest('.ak-ctx-menu')) setCtx(null)
+    }
+    const kb = (): void => setCtx(null)
+    window.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', kb)
+    return () => {
+      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', kb)
+    }
+  }, [ctx])
+
+  const ctxPos = (e: ReactMouseEvent): { x: number; y: number } => ({
+    x: Math.min(e.clientX, window.innerWidth - 200),
+    y: Math.min(e.clientY, window.innerHeight - 140)
+  })
+
+  const openNoteCtx = (e: ReactMouseEvent, noteId: string): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtx({
+      ...ctxPos(e),
+      actions: [
+        { label: '打开', run: () => void openNote(noteId) },
+        { label: '另存为…', run: () => void openNote(noteId).then(() => setSaveAsOpen(true)) },
+        { label: '快速记录…', run: () => setCaptureOpen(true) }
+      ]
+    })
+  }
+  const openPaneCtx = (e: ReactMouseEvent): void => {
+    e.preventDefault()
+    setCtx({
+      ...ctxPos(e),
+      actions: [
+        { label: '快速记录…', run: () => setCaptureOpen(true) },
+        { label: '刷新列表', run: () => void loadSummaries() }
+      ]
+    })
+  }
+
   const wordCount = active ? active.md.replace(/[`#*_|>~]/g, '').length : 0
 
   const labelCls = 'mb-1 text-[11px] font-medium uppercase tracking-wider text-neutral-500'
@@ -279,7 +334,7 @@ export default function App(): ReactElement {
       />
       <div className="flex min-h-0 flex-1">
         {/* 左栏 */}
-        <aside className="flex w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/60">
+        <aside className="flex w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/60" onContextMenu={openPaneCtx}>
           <div className="border-b border-neutral-800 px-3 py-2">
             <p className="truncate text-[11px] text-neutral-500" title={settings?.notesRoot}>
               {settings?.notesRoot}
@@ -295,6 +350,7 @@ export default function App(): ReactElement {
                     key={s.noteId}
                     type="button"
                     onClick={() => void openNote(s.noteId)}
+                    onContextMenu={(e) => openNoteCtx(e, s.noteId)}
                     className={`block w-full rounded px-2 py-1 text-left text-[13px] hover:bg-neutral-800 ${
                       active?.noteId === s.noteId ? 'bg-neutral-800/80 text-sky-300' : 'text-neutral-300'
                     }`}
@@ -321,15 +377,6 @@ export default function App(): ReactElement {
               </button>
             ))}
           </div>
-          <div className="border-t border-neutral-800 p-2">
-            <button
-              type="button"
-              className="w-full rounded border border-neutral-700 px-2 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
-              onClick={() => setSettingsOpen(true)}
-            >
-              设置…
-            </button>
-          </div>
         </aside>
 
         {/* 主区 */}
@@ -348,33 +395,12 @@ export default function App(): ReactElement {
                 {active.meta.status !== 'active' && (
                   <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-xs text-sky-400">{STATUS_LABEL[active.meta.status]}</span>
                 )}
-                <span className="ml-auto flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={toggleMode}
-                    className="rounded px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
-                  >
-                    {mode === 'edit' ? '阅读' : '编辑'} (Ctrl+E)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCaptureOpen(true)}
-                    className="rounded border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
-                  >
-                    + 新建 (Ctrl+Shift+N)
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!dirty || saving}
-                    onClick={() => void save()}
-                    className="rounded bg-sky-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-sky-500 disabled:opacity-40"
-                  >
-                    {saving ? '保存中…' : dirty ? '保存 * (Ctrl+S)' : '已保存'}
-                  </button>
+                <span className="ml-auto text-[11px] text-neutral-700">
+                  {mode === 'edit' ? '编辑中 · Ctrl+E 阅读' : '阅读 · Ctrl+E 编辑'}
                 </span>
               </>
             ) : (
-              <span className="text-sm text-neutral-400">选择左侧题解，或 Ctrl+Shift+N 快速记录</span>
+              <span className="text-sm text-neutral-400">选择左侧题解，或 文件 → 快速记录（Ctrl+Shift+N）</span>
             )}
           </header>
 
@@ -503,6 +529,7 @@ export default function App(): ReactElement {
       )}
       {reviewOpen && (
         <ReviewSession
+          availableTags={allTags}
           onExit={() => {
             setReviewOpen(false)
             void refreshDue()
@@ -519,6 +546,26 @@ export default function App(): ReactElement {
             void refreshDue()
           }}
         />
+      )}
+      {ctx && (
+        <div
+          className="ak-ctx-menu fixed z-[60] min-w-44 rounded border border-neutral-700 bg-neutral-900 py-1 shadow-2xl"
+          style={{ left: ctx.x, top: ctx.y }}
+        >
+          {ctx.actions.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              className="block w-full px-3 py-1.5 text-left text-[13px] text-neutral-200 hover:bg-neutral-800"
+              onClick={() => {
+                a.run()
+                setCtx(null)
+              }}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   )

@@ -1,18 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
-import type { CardSessionItem, ReviewResult } from '../../../../shared/types/srs'
+import type { Difficulty } from '../../../../shared/types/note'
+import type { CardSessionItem, ReviewFilter, ReviewResult } from '../../../../shared/types/srs'
 
 export interface ReviewSessionProps {
   onExit(): void
+  availableTags?: string[]
 }
 
 /** 全键盘复习覆盖层：空格翻答案 · 1-4 评分 · U 撤销上一步 · Esc 退出并保存。 */
-export default function ReviewSession({ onExit }: ReviewSessionProps): ReactElement {
+export default function ReviewSession({ onExit, availableTags = [] }: ReviewSessionProps): ReactElement {
   const [cards, setCards] = useState<CardSessionItem[] | null>(null)
   const [idx, setIdx] = useState(0)
   const [phase, setPhase] = useState<'question' | 'reveal'>('question')
   const [results, setResults] = useState<ReviewResult[]>([])
   const [status, setStatus] = useState('加载队列…')
+  const [diff, setDiff] = useState<'all' | Difficulty>('all')
+  const [tag, setTag] = useState('all')
 
   const cardsRef = useRef<CardSessionItem[]>([])
   const idxRef = useRef(0)
@@ -23,19 +27,27 @@ export default function ReviewSession({ onExit }: ReviewSessionProps): ReactElem
   phaseRef.current = phase
   resultsRef.current = results
 
+  // 难度/标签过滤变化时重拉队列
   useEffect(() => {
     let alive = true
     void (async () => {
+      setStatus('加载队列…')
       const api = window.api
-      const list = (await api?.review.collect()) ?? []
+      const filter: ReviewFilter = {}
+      if (diff !== 'all') filter.difficulty = diff
+      if (tag !== 'all') filter.tags = [tag]
+      const list = (await api?.review.collect(Object.keys(filter).length ? filter : undefined)) ?? []
       if (!alive) return
       setCards(list)
-      setStatus(list.length ? '' : '今日队列为空 🎉')
+      setIdx(0)
+      setPhase('question')
+      setResults([])
+      setStatus(list.length ? '' : '该筛选下今日队列为空 🎉')
     })()
     return () => {
       alive = false
     }
-  }, [])
+  }, [diff, tag])
 
   const commitAndExit = async (): Promise<void> => {
     const api = window.api
@@ -113,6 +125,38 @@ export default function ReviewSession({ onExit }: ReviewSessionProps): ReactElem
           退出并保存 (Esc)
         </button>
       </header>
+
+      <div className="flex items-center gap-4 border-b border-neutral-800/70 px-4 py-1.5 text-xs text-neutral-500">
+        <label className="flex items-center gap-1.5">
+          难度
+          <select
+            value={diff}
+            onChange={(e) => setDiff(e.target.value as 'all' | Difficulty)}
+            className="rounded border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-xs text-neutral-200 focus:outline-none"
+          >
+            <option value="all">全部</option>
+            <option>Easy</option>
+            <option>Medium</option>
+            <option>Hard</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-1.5">
+          标签
+          <select
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            className="rounded border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-xs text-neutral-200 focus:outline-none"
+          >
+            <option value="all">全部</option>
+            {availableTags.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+        {cards && cards.length > 0 && <span className="ml-auto text-neutral-600">改动筛选将重置本轮进度</span>}
+      </div>
 
       {status ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3">
