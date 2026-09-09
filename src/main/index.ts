@@ -43,6 +43,8 @@ function installMenu(): void {
       label: '视图',
       submenu: [
         { label: '阅读/编辑切换', accelerator: 'CmdOrCtrl+E', click: () => sendMenuAction('toggle-mode') },
+        { label: '搜索…', accelerator: 'CmdOrCtrl+K', click: () => sendMenuAction('open-search') },
+        { label: '统计看板…', click: () => sendMenuAction('open-dashboard') },
         { label: '今日复习…', accelerator: 'CmdOrCtrl+Shift+R', click: () => sendMenuAction('review-start') },
         { type: 'separator' },
         { role: 'togglefullscreen', label: '全屏' }

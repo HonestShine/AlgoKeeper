@@ -12,6 +12,8 @@ export interface TopMenuBarProps {
   onToggleMode(): void
   onOpenSettings(): void
   onReview(): void
+  onSearch(): void
+  onDashboard(): void
 }
 
 interface MenuItemDef {
@@ -43,7 +45,11 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
     {
       key: 'view',
       label: '视图',
-      items: [{ key: 'toggle', label: p.mode === 'edit' ? '阅读模式' : '编辑模式', shortcut: 'Ctrl+E' }]
+      items: [
+        { key: 'toggle', label: p.mode === 'edit' ? '阅读模式' : '编辑模式', shortcut: 'Ctrl+E' },
+        { key: 'search', label: '搜索…', shortcut: 'Ctrl+K' },
+        { key: 'dashboard', label: '统计看板…' }
+      ]
     },
     {
       key: 'review',
@@ -78,6 +84,12 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
         break
       case 'open-settings':
         p.onOpenSettings()
+        break
+      case 'search':
+        p.onSearch()
+        break
+      case 'dashboard':
+        p.onDashboard()
         break
     }
   }

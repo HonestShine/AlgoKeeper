@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { CH } from '../shared/ipc/channels'
 import type { MenuAction, RendererApi } from '../shared/types/ipc'
+import type { SearchFilter } from '../shared/types/insight'
 import type { NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../shared/types/note'
 import type { ReviewFilter, ReviewResult } from '../shared/types/srs'
 
@@ -37,6 +38,13 @@ const api: RendererApi = {
   },
 
   parseUrl: (raw) => invoke(CH.parseUrl, raw),
+
+  search: {
+    query: (filter: SearchFilter) => invoke(CH.searchQuery, filter)
+  },
+  stats: {
+    overview: () => invoke(CH.statsOverview)
+  },
 
   onMenuAction: (cb) => {
     const listener = (_e: IpcRendererEvent, action: MenuAction): void => cb(action)

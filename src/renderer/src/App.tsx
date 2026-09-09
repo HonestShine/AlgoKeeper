@@ -8,6 +8,8 @@ import SaveAsDialog from './components/capture/SaveAsDialog'
 import ReviewSession from './components/review/ReviewSession'
 import TopMenuBar from './components/menu/TopMenuBar'
 import SettingsDialog from './components/settings/SettingsDialog'
+import SearchPalette from './components/search/SearchPalette'
+import Dashboard from './components/dashboard/Dashboard'
 
 const DIFFICULTIES: Difficulty[] = ['Easy', 'Medium', 'Hard']
 const STATUSES: NoteStatus[] = ['active', 'to-review', 'mastered', 'need-depth']
@@ -42,6 +44,8 @@ export default function App(): ReactElement {
   const [saveAsOpen, setSaveAsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [dashboardOpen, setDashboardOpen] = useState(false)
   const [dueCount, setDueCount] = useState(0)
   const [error, setError] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -174,6 +178,12 @@ export default function App(): ReactElement {
         case 'open-settings':
           setSettingsOpen(true)
           break
+        case 'open-search':
+          setSearchOpen(true)
+          break
+        case 'open-dashboard':
+          setDashboardOpen(true)
+          break
       }
     })
   }, [api, save, openSaveAs, toggleMode, pickNewRoot, startReview])
@@ -186,6 +196,9 @@ export default function App(): ReactElement {
       if (e.key === ',') {
         e.preventDefault()
         setSettingsOpen(true)
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault()
+        setSearchOpen(true)
       } else if (e.shiftKey && (e.key === 'N' || e.key === 'n')) {
         e.preventDefault()
         setCaptureOpen(true)
@@ -331,6 +344,8 @@ export default function App(): ReactElement {
         onToggleMode={toggleMode}
         onOpenSettings={() => setSettingsOpen(true)}
         onReview={startReview}
+        onSearch={() => setSearchOpen(true)}
+        onDashboard={() => setDashboardOpen(true)}
       />
       <div className="flex min-h-0 flex-1">
         {/* 左栏 */}
@@ -547,6 +562,16 @@ export default function App(): ReactElement {
           }}
         />
       )}
+      {searchOpen && (
+        <SearchPalette
+          onPick={(noteId) => {
+            setSearchOpen(false)
+            void openNote(noteId)
+          }}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
+      {dashboardOpen && <Dashboard onClose={() => setDashboardOpen(false)} />}
       {ctx && (
         <div
           className="ak-ctx-menu fixed z-[60] min-w-44 rounded border border-neutral-700 bg-neutral-900 py-1 shadow-2xl"

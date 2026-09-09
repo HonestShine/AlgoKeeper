@@ -46,6 +46,16 @@ export interface RendererApi {
   /** 从题目 URL 解析 source/id/title */
   parseUrl(raw: string): Promise<ParsedProblemUrl | null>
 
+  /** 检索与洞察（M3） */
+  search: {
+    /** 组合条件检索（标题/标签/正文 text + 难度/状态/标签 AND） */
+    query(filter: SearchFilter): Promise<SearchHit[]>
+  }
+  stats: {
+    /** 仪表盘聚合：总数/难度/标签/正确率曲线/薄弱标签 */
+    overview(): Promise<StatsOverview>
+  }
+
   /** 订阅桌面端原生菜单动作；返回退订函数 */
   onMenuAction(cb: (action: MenuAction) => void): () => void
 }
@@ -58,6 +68,8 @@ export type MenuAction =
   | 'change-root'
   | 'review-start'
   | 'open-settings'
+  | 'open-search'
+  | 'open-dashboard'
 
 export interface SettingsPayload {
   settings: Settings
@@ -74,5 +86,8 @@ type SaveNoteInput = import('./note').SaveNoteInput
 type SaveAsTarget = import('./note').SaveAsTarget
 type CardSessionItem = import('./srs').CardSessionItem
 type ReviewResult = import('./srs').ReviewResult
+type SearchFilter = import('./insight').SearchFilter
+type SearchHit = import('./note').NoteSummary
+type StatsOverview = import('./insight').StatsOverview
 
 export type { Difficulty }

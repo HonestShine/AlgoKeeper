@@ -5,6 +5,9 @@ import { getSettings, updateSettings } from '../services/settings-store'
 import { createNote, listNotes, readNote, saveAsNote, saveNote } from '../services/note-store'
 import { collectDue, commitReviews } from '../services/srs-store'
 import { indexNote, recordReviewLogs } from '../services/indexer'
+import { searchNotes } from '../services/search-service'
+import { statsOverview } from '../services/stats-service'
+import type { SearchFilter } from '../../shared/types/insight'
 import type { NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
 import type { ReviewFilter, ReviewResult } from '../../shared/types/srs'
 import type { SettingsUpdate } from '../../shared/types/settings'
@@ -82,5 +85,7 @@ export function registerIpc(): void {
     for (const noteId of touched) await indexNote(root, noteId)
     return outcome.written
   })
+  reg(CH.searchQuery, async (filter: SearchFilter) => searchNotes(await currentRoot(), filter))
+  reg(CH.statsOverview, async () => statsOverview())
   reg(CH.parseUrl, async (raw: string) => parseProblemUrl(raw))
 }

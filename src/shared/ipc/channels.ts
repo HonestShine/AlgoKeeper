@@ -13,6 +13,8 @@ export const CH = {
   reviewDueCount: 'review:due-count',
   reviewCollect: 'review:collect',
   reviewCommit: 'review:commit',
+  searchQuery: 'search:query',
+  statsOverview: 'stats:overview',
   /** main → renderer：原生菜单动作 */
   menuAction: 'menu:action'
 } as const

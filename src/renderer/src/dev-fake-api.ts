@@ -5,7 +5,9 @@
 import type { MenuAction, RendererApi } from '../../shared/types/ipc'
 import type { FileMeta, LoadedNote, NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
 import type { AppSettings } from '../../shared/types/settings'
-import type { CardSessionItem, ReviewFilter, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
+import type { CardSessionItem, ReviewFilter, ReviewLogEntry, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
+import type { SearchFilter, StatsOverview, TagCount, WeakTag } from '../../shared/types/insight'
+import type { Difficulty } from '../../shared/types/note'
 import { parseProblemUrl } from '../../shared/utils/url'
 import { todayKey } from '../../shared/utils/date'
 import { newCardScheduling, schedule } from '../../shared/utils/sm2'
@@ -89,6 +91,15 @@ export function installFakeApi(): RendererApi {
       }
     } catch {
       return { appRoot: '<dev>', notesRootDefault: '<dev>/Documents', notesRoot: '<dev>/Documents', newCardLimit: 20 }
+    }
+  }
+
+  const LOGS_KEY = 'alk:logs'
+  const readLogs = (): ReviewLogEntry[] => {
+    try {
+      return (JSON.parse(localStorage.getItem(LOGS_KEY) ?? '[]') as ReviewLogEntry[]) ?? []
+    } catch {
+      return []
     }
   }
 
@@ -231,6 +242,7 @@ export function installFakeApi(): RendererApi {
       commit: async (results: ReviewResult[]) => {
         const today = todayKey()
         const sched = readSched()
+        const logs: ReviewLogEntry[] = []
         for (const r of results) {
           const idx = r.cardId.lastIndexOf('::')
           if (idx <= 0) continue
@@ -245,12 +257,84 @@ export function installFakeApi(): RendererApi {
             ns.cards[key] = upd
           }
           sched[noteId] = ns
+          logs.push({
+            cardId: r.cardId,
+            noteId,
+            grade: r.grade,
+            ts: new Date().toISOString(),
+            intervalBefore: cur.interval,
+            intervalAfter: upd.interval,
+            easeAfter: upd.easeFactor
+          })
         }
         writeSched(sched)
+        localStorage.setItem(LOGS_KEY, JSON.stringify([...readLogs(), ...logs]))
         return results.length
       }
     },
     parseUrl: async (raw) => parseProblemUrl(raw),
+    search: {
+      query: async (filter: SearchFilter) => {
+        const text = (filter.text ?? '').trim().toLowerCase()
+        const res: StoreNote[] = []
+        for (const n of notes) {
+          if (filter.difficulty && n.meta.difficulty !== filter.difficulty) continue
+          if (filter.status && n.meta.status !== filter.status) continue
+          if (filter.tag && !n.meta.tags.includes(filter.tag)) continue
+          if (text) {
+            const hit =
+              n.meta.title.toLowerCase().includes(text) ||
+              n.meta.tags.some((t) => t.toLowerCase().includes(text)) ||
+              n.bodyMd.toLowerCase().includes(text)
+            if (!hit) continue
+          }
+          res.push(n)
+        }
+        return res.map(summarize)
+      }
+    },
+    stats: {
+      overview: async (): Promise<StatsOverview> => {
+        const DIFFS: Difficulty[] = ['Easy', 'Medium', 'Hard']
+        const total = notes.length
+        const difficulty = DIFFS.map((d) => ({ difficulty: d, count: notes.filter((n) => n.meta.difficulty === d).length }))
+        const tagMap = new Map<string, number>()
+        for (const n of notes) for (const t of n.meta.tags) tagMap.set(t, (tagMap.get(t) ?? 0) + 1)
+        const tags: TagCount[] = [...tagMap.entries()]
+          .map(([tag, count]) => ({ tag, count }))
+          .sort((a, b) => b.count - a.count)
+        const withTags = notes.filter((n) => n.meta.tags.length > 0).length
+        const tagCoverage = total ? withTags / total : 0
+        const logs = readLogs()
+        const perDate = new Map<string, { ok: number; n: number }>()
+        for (const l of logs) {
+          const d = l.ts.slice(0, 10)
+          const e = perDate.get(d) ?? { ok: 0, n: 0 }
+          e.n += 1
+          if (l.grade >= 3) e.ok += 1
+          perDate.set(d, e)
+        }
+        const series = [...perDate.entries()]
+          .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+          .map(([date, v]) => ({ date, acc: v.ok / v.n, n: v.n }))
+        const tagStats = new Map<string, { ok: number; n: number }>()
+        for (const l of logs) {
+          const n = notes.find((x) => x.noteId === l.noteId)
+          if (!n) continue
+          for (const t of n.meta.tags) {
+            const e = tagStats.get(t) ?? { ok: 0, n: 0 }
+            e.n += 1
+            if (l.grade >= 3) e.ok += 1
+            tagStats.set(t, e)
+          }
+        }
+        const weakTags: WeakTag[] = [...tagStats.entries()]
+          .map(([tag, v]) => ({ tag, acc: v.ok / v.n, n: v.n }))
+          .filter((w) => w.n >= 3 && w.acc < 0.6)
+          .sort((a, b) => a.acc - b.acc)
+        return { total, difficulty, tags, tagCoverage, weakTags, series }
+      }
+    },
     onMenuAction: (_cb: (action: MenuAction) => void) => () => undefined
   }
   return api
