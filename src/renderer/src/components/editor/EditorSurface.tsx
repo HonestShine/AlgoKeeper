@@ -17,6 +17,9 @@ import Highlight from '@tiptap/extension-highlight'
 import Subscript from '@tiptap/extension-subscript'
 import Superscript from '@tiptap/extension-superscript'
 import Image from '@tiptap/extension-image'
+import { Fragment } from '@tiptap/pm/model'
+import type { Node as PMNode } from '@tiptap/pm/model'
+import { Footnote } from '../../lib/footnote-extension'
 import { getActiveEditor, setActiveEditor } from '../../lib/editor-bridge'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
@@ -25,6 +28,7 @@ const lowlight = createLowlight(common)
 
 const extensions = [
   StarterKit.configure({ codeBlock: false }),
+  Footnote,
   CodeBlockLowlight.configure({ lowlight }),
   MathExtension.configure({ evaluation: true }),
   Markdown.configure({ html: false, tightLists: true }),
@@ -54,6 +58,30 @@ export interface EditorSurfaceProps {
 function mdFromEditor(editor: { storage: unknown }): string {
   const storage = editor.storage as { markdown?: { getMarkdown?: () => string } }
   return storage.markdown?.getMarkdown?.() ?? ''
+}
+
+/** 把正文中的 `[^n]` 文本 token 转成 Footnote 节点（幂等） */
+function convertFootnoteTokens(editor: import('@tiptap/core').Editor): void {
+  let tr = editor.state.tr
+  let changed = false
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.isText || typeof node.text !== 'string' || !node.text.includes('[^')) return true
+    const schema = node.type.schema
+    const re = /\[\^(\d+)\]/g
+    const parts: PMNode[] = []
+    let last = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(node.text)) !== null) {
+      if (m.index > last) parts.push(schema.text(node.text.slice(last, m.index), node.marks))
+      parts.push(schema.nodes.footnote.create({ ref: Number(m[1]) }) as PMNode)
+      last = m.index + m[0].length
+    }
+    if (last < node.text.length) parts.push(schema.text(node.text.slice(last), node.marks))
+    tr = tr.replaceWith(pos, pos + node.nodeSize, Fragment.fromArray(parts))
+    changed = true
+    return true
+  })
+  if (changed && tr.docChanged) editor.view.dispatch(tr)
 }
 
 export default function EditorSurface({ md, editable, onDocChange, onOpenContext }: EditorSurfaceProps): ReactElement {
@@ -89,6 +117,13 @@ export default function EditorSurface({ md, editable, onDocChange, onOpenContext
   useEffect(() => {
     if (editor) editor.setEditable(editable)
   }, [editable, editor])
+
+  // md 载入后把文本 `[^n]` 转成 Footnote 节点（置于程序性写窗前，避免误标 dirty）
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    lastApplied.current = performance.now()
+    convertFootnoteTokens(editor)
+  }, [md, editor])
 
   // 警告框彩化：DOM 装饰层（不改 schema，round-trip 安全）；块引用首行 `[!type]` 上色
   useEffect(() => {

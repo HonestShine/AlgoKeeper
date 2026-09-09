@@ -218,13 +218,19 @@ export function runEditorAction(id: string): boolean {
       return true
     }
     case 'footnote': {
-      const text = editor.state.doc.textContent
       let max = 0
-      const re = /\[\^(\d+)\]/g
-      let m: RegExpExecArray | null
-      while ((m = re.exec(text)) !== null) max = Math.max(max, Number(m[1]))
+      const bump = (s: string): void => {
+        const re = /\[\^(\d+)\]/g
+        let m: RegExpExecArray | null
+        while ((m = re.exec(s)) !== null) max = Math.max(max, Number(m[1]))
+      }
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === 'footnote') max = Math.max(max, Number(node.attrs.ref) || 0)
+        else if (node.isText && typeof node.text === 'string') bump(node.text)
+        return true
+      })
       const n = max + 1
-      editor.chain().focus().insertContent(`[^${n}]`).run()
+      editor.chain().focus().insertContent({ type: 'footnote', attrs: { ref: n } }).run()
       editor.chain().insertContentAt(editor.state.doc.content.size, `\n\n[^${n}]: 脚注内容\n`).run()
       return true
     }

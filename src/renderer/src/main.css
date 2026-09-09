@@ -328,3 +328,11 @@ body {
 .ak-editor blockquote.ak-callout-caution::before {
   content: '🚫';
 }
+
+/* ===== 脚注上标样式 ===== */
+.ak-editor sup.ak-footnote {
+  color: #0969da;
+  font-size: 0.75em;
+  cursor: pointer;
+  margin: 0 0.1em;
+}

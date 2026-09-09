@@ -103,6 +103,17 @@ try {
   assert.ok(proseAfter.includes(token), '粘贴闭环失败：正文未出现探针')
   console.log('✔ 粘贴闭环：主进程探针文本已粘贴进正文')
 
+  // 6) 脚注节点化 round-trip：段落>脚注 插入 → 文件>保存 → 源文件含 [^1] 定义
+  await page.locator('.ak-editor .ProseMirror').click()
+  await page.keyboard.press('End')
+  await clickMenu(page, '段落', /^脚注$/)
+  await page.waitForTimeout(250)
+  await clickMenu(page, '文件', /^保存 Ctrl\+S$/)
+  await page.waitForTimeout(500)
+  const withFootnote = await fs.readFile(file, 'utf8')
+  assert.ok(withFootnote.includes('[^1]'), '保存后源文件未含脚注引用/定义')
+  console.log('✔ 脚注节点化：插入并保存 → 源文件含 [^1]')
+
   console.log('✔✔ 真实 Electron 全链路走查通过')
 } finally {
   await app.close()

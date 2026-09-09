@@ -2,6 +2,9 @@
 
 > 背景：tiptap-markdown 0.9 序列化器为固定节点集，直接塞自定义 footnote 节点会导致保存丢脚注。
 > 结论：编辑器 Markdown 读写需迁移到**可扩展 ProseMirror markdown 管线**后再挂 footnote 规则。
+>
+> **实施更新**：探查 `tiptap-markdown` 0.9 后确认它支持「扩展以 `addStorage().markdown` 注册自定义节点序列化」（TaskItem 同款机制），**无需整体迁移 md 管线**。
+> 已落地：自定义 `footnote` inline atom 节点（`ref` 编号，渲染 `<sup class=ak-footnote>`），经 addStorage 注册序列化为 `[^n]`；载入时把正文文本 `[^n]` 幂等转回节点；插入命令创建节点并自动追加文末定义；E2E 验证「插入→保存→源文件含 [^1]」。
 
 ## 现状
 - 脚注当前为**文本级**：插入自动编号 `[^n]` + 文末定义，round-trip 无损、导出/检索/源码模式可用。
