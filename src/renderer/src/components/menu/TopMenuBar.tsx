@@ -14,6 +14,7 @@ export interface TopMenuBarProps {
   onReview(): void
   onSearch(): void
   onDashboard(): void
+  onExport(): void
 }
 
 interface MenuItemDef {
@@ -39,7 +40,8 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
       items: [
         { key: 'new', label: '快速记录…', shortcut: 'Ctrl+Shift+N' },
         { key: 'save', label: p.dirty ? '保存 *' : '保存', shortcut: 'Ctrl+S', disabled: !p.dirty || p.saving },
-        { key: 'save-as', label: '另存为…', shortcut: 'Ctrl+Shift+S' }
+        { key: 'save-as', label: '另存为…', shortcut: 'Ctrl+Shift+S' },
+        { key: 'export', label: '导出…' }
       ]
     },
     {
@@ -75,6 +77,9 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
         break
       case 'save-as':
         p.onSaveAs()
+        break
+      case 'export':
+        p.onExport()
         break
       case 'toggle':
         p.onToggleMode()

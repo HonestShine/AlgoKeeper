@@ -3,6 +3,7 @@ import type { IpcRendererEvent } from 'electron'
 import { CH } from '../shared/ipc/channels'
 import type { MenuAction, RendererApi } from '../shared/types/ipc'
 import type { SearchFilter } from '../shared/types/insight'
+import type { ExportRequest } from '../shared/types/export'
 import type { NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../shared/types/note'
 import type { ReviewFilter, ReviewResult } from '../shared/types/srs'
 
@@ -28,7 +29,8 @@ const api: RendererApi = {
     get: (noteId) => invoke(CH.notesGet, noteId),
     create: (draft: NewNoteDraft) => invoke(CH.notesCreate, draft),
     save: (input: SaveNoteInput) => invoke(CH.notesSave, input),
-    saveAs: (input: { noteId: string; target: SaveAsTarget }) => invoke(CH.notesSaveAs, input)
+    saveAs: (input: { noteId: string; target: SaveAsTarget }) => invoke(CH.notesSaveAs, input),
+    related: (noteId: string) => invoke(CH.notesRelated, noteId)
   },
 
   review: {
@@ -44,6 +46,10 @@ const api: RendererApi = {
   },
   stats: {
     overview: () => invoke(CH.statsOverview)
+  },
+
+  export: {
+    run: (req: ExportRequest) => invoke(CH.exportRun, req)
   },
 
   onMenuAction: (cb) => {

@@ -31,6 +31,8 @@ export interface RendererApi {
     save(input: SaveNoteInput): Promise<{ noteId: string; updatedAt: string }>
     /** 另存为：复制到新 source/id（重置调度），冲突抛错 */
     saveAs(input: { noteId: string; target: SaveAsTarget }): Promise<LoadedNote>
+    /** 双向关联：反链 + 同标签推荐 */
+    related(noteId: string): Promise<RelatedNotes>
   }
 
   /** 间隔重复复习 */
@@ -54,6 +56,11 @@ export interface RendererApi {
   stats: {
     /** 仪表盘聚合：总数/难度/标签/正确率曲线/薄弱标签 */
     overview(): Promise<StatsOverview>
+  }
+
+  /** 导出（选目录对话框在 main 侧弹出；取消返回 null） */
+  export: {
+    run(req: ExportRequest): Promise<ExportResult | null>
   }
 
   /** 订阅桌面端原生菜单动作；返回退订函数 */
@@ -89,5 +96,8 @@ type ReviewResult = import('./srs').ReviewResult
 type SearchFilter = import('./insight').SearchFilter
 type SearchHit = import('./note').NoteSummary
 type StatsOverview = import('./insight').StatsOverview
+type RelatedNotes = import('./export').RelatedNotes
+type ExportRequest = import('./export').ExportRequest
+type ExportResult = import('./export').ExportResult
 
 export type { Difficulty }

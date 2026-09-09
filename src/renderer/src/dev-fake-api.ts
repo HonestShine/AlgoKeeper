@@ -7,11 +7,13 @@ import type { FileMeta, LoadedNote, NewNoteDraft, SaveAsTarget, SaveNoteInput } 
 import type { AppSettings } from '../../shared/types/settings'
 import type { CardSessionItem, ReviewFilter, ReviewLogEntry, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
 import type { SearchFilter, StatsOverview, TagCount, WeakTag } from '../../shared/types/insight'
-import type { Difficulty } from '../../shared/types/note'
+import type { RelatedNotes } from '../../shared/types/export'
+import type { Difficulty, NoteSummary } from '../../shared/types/note'
 import { parseProblemUrl } from '../../shared/utils/url'
 import { todayKey } from '../../shared/utils/date'
 import { newCardScheduling, schedule } from '../../shared/utils/sm2'
 import { parseBodyCards } from '../../shared/utils/cards'
+import { parseWikiTargets } from '../../shared/utils/wikilinks'
 
 const LS_KEY = 'alk:notes'
 const SETTINGS_KEY = 'alk:settings'
@@ -234,6 +236,25 @@ export function installFakeApi(): RendererApi {
         notes = [...notes, { noteId, meta, bodyMd: src.bodyMd }]
         persist(notes)
         return { noteId, filePath: `<virtual>/${noteId}.md`, meta, bodyMd: src.bodyMd, warnings: [] }
+      },
+      related: async (noteId: string): Promise<RelatedNotes> => {
+        const self = notes.find((n) => n.noteId === noteId)
+        if (!self) return { backlinks: [], similar: [] }
+        const names = new Set([self.meta.title, self.meta.id, ...self.meta.aliases])
+        const backlinks: NoteSummary[] = []
+        const scored: Array<{ s: NoteSummary; score: number }> = []
+        for (const n of notes) {
+          if (n.noteId === noteId) continue
+          const refs = parseWikiTargets(n.bodyMd)
+          if (refs.some((r) => names.has(r))) backlinks.push(summarize(n))
+          const overlap = n.meta.tags.filter((t) => self.meta.tags.includes(t)).length
+          if (overlap > 0) scored.push({ s: summarize(n), score: overlap })
+        }
+        const similar = scored
+          .sort((a, b) => b.score - a.score || (a.s.title < b.s.title ? -1 : 1))
+          .slice(0, 5)
+          .map((x) => x.s)
+        return { backlinks, similar }
       }
     },
     review: {
@@ -291,6 +312,13 @@ export function installFakeApi(): RendererApi {
           res.push(n)
         }
         return res.map(summarize)
+      }
+    },
+    export: {
+      run: async (req) => {
+        if (req.format === 'pdf') throw Object.assign(new Error('PDF 导出尚未实现，请使用 Markdown / HTML'), { code: 'export.pdf' })
+        const count = req.scope === 'single' && req.noteId ? 1 : notes.length
+        return { path: '<导出目录>', count }
       }
     },
     stats: {

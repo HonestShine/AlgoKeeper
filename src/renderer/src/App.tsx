@@ -10,6 +10,9 @@ import TopMenuBar from './components/menu/TopMenuBar'
 import SettingsDialog from './components/settings/SettingsDialog'
 import SearchPalette from './components/search/SearchPalette'
 import Dashboard from './components/dashboard/Dashboard'
+import ExportDialog from './components/export/ExportDialog'
+import { parseToc } from '../../shared/utils/toc'
+import type { RelatedNotes } from '../../shared/types/export'
 
 const DIFFICULTIES: Difficulty[] = ['Easy', 'Medium', 'Hard']
 const STATUSES: NoteStatus[] = ['active', 'to-review', 'mastered', 'need-depth']
@@ -46,6 +49,8 @@ export default function App(): ReactElement {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [dashboardOpen, setDashboardOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [related, setRelated] = useState<RelatedNotes | null>(null)
   const [dueCount, setDueCount] = useState(0)
   const [error, setError] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -136,6 +141,24 @@ export default function App(): ReactElement {
   useEffect(() => {
     if (api) void refreshDue()
   }, [api, refreshDue])
+
+  // 打开笔记时加载双向关联（反链 + 同标签）
+  const activeNoteId = active?.noteId
+  useEffect(() => {
+    if (!activeNoteId) {
+      setRelated(null)
+      return
+    }
+    let alive = true
+    setRelated(null)
+    void api?.notes
+      .related(activeNoteId)
+      .then((r) => alive && setRelated(r))
+      .catch(() => alive && setRelated({ backlinks: [], similar: [] }))
+    return () => {
+      alive = false
+    }
+  }, [api, activeNoteId])
 
   const startReview = useCallback((): void => {
     setReviewOpen(true)
@@ -310,6 +333,7 @@ export default function App(): ReactElement {
   }
 
   const wordCount = active ? active.md.replace(/[`#*_|>~]/g, '').length : 0
+  const toc = active ? parseToc(active.md) : []
 
   const labelCls = 'mb-1 text-[11px] font-medium uppercase tracking-wider text-neutral-500'
   const fieldCls =
@@ -346,6 +370,7 @@ export default function App(): ReactElement {
         onReview={startReview}
         onSearch={() => setSearchOpen(true)}
         onDashboard={() => setDashboardOpen(true)}
+        onExport={() => setExportOpen(true)}
       />
       <div className="flex min-h-0 flex-1">
         {/* 左栏 */}
@@ -424,7 +449,21 @@ export default function App(): ReactElement {
               mode === 'edit' ? (
                 <EditorSurface md={active.md} editable onDocChange={(md) => { setActive((p) => (p ? { ...p, md } : p)); setDirty(true) }} />
               ) : (
-                <EditorSurface md={active.md} editable={false} />
+                <div className="flex h-full">
+                  {toc.length > 0 && (
+                    <aside className="w-44 shrink-0 overflow-y-auto border-r border-neutral-800/70 px-3 py-3 text-xs">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-600">大纲</p>
+                      {toc.map((item, i) => (
+                        <p key={i} className="truncate py-0.5 text-neutral-400" style={{ paddingLeft: `${(item.depth - 1) * 10}px` }}>
+                          {item.text}
+                        </p>
+                      ))}
+                    </aside>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <EditorSurface md={active.md} editable={false} />
+                  </div>
+                </div>
               )
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-neutral-600">
@@ -511,6 +550,42 @@ export default function App(): ReactElement {
                 <br />
                 更新 {fmt(active.meta.updatedAt)}
               </p>
+
+              <p className={labelCls}>关联题目</p>
+              {!related && <p className="text-xs text-neutral-600">加载中…</p>}
+              {related && related.backlinks.length === 0 && related.similar.length === 0 && (
+                <p className="text-xs text-neutral-600">暂无（用 [[题名]] 建立引用）</p>
+              )}
+              {related && related.backlinks.length > 0 && (
+                <div className="mb-2">
+                  <p className="mb-1 text-[11px] text-sky-400">反向链接 ({related.backlinks.length})</p>
+                  {related.backlinks.map((b) => (
+                    <button
+                      key={b.noteId}
+                      type="button"
+                      className="block w-full truncate rounded px-1 py-0.5 text-left text-xs text-neutral-300 hover:bg-neutral-800"
+                      onClick={() => void openNote(b.noteId)}
+                    >
+                      {b.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {related && related.similar.length > 0 && (
+                <div>
+                  <p className="mb-1 text-[11px] text-neutral-500">同标签推荐</p>
+                  {related.similar.map((b) => (
+                    <button
+                      key={b.noteId}
+                      type="button"
+                      className="block w-full truncate rounded px-1 py-0.5 text-left text-xs text-neutral-300 hover:bg-neutral-800"
+                      onClick={() => void openNote(b.noteId)}
+                    >
+                      {b.title}
+                    </button>
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <p className="text-xs text-neutral-600">选择题解查看与编辑元数据</p>
@@ -572,6 +647,7 @@ export default function App(): ReactElement {
         />
       )}
       {dashboardOpen && <Dashboard onClose={() => setDashboardOpen(false)} />}
+      {exportOpen && <ExportDialog noteId={active?.noteId} onClose={() => setExportOpen(false)} />}
       {ctx && (
         <div
           className="ak-ctx-menu fixed z-[60] min-w-44 rounded border border-neutral-700 bg-neutral-900 py-1 shadow-2xl"
