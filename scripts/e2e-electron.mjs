@@ -1,3 +1,4 @@
+/* global window */
 /**
  * 真实 Electron 全链路走查（Playwright _electron 驱动真实构建窗口：
  * 真实 preload/IPC/fs/SM-2 写回，不依赖网页假后端）。
@@ -62,9 +63,11 @@ try {
 
   // 2) 复习>今日复习 → 空格显示答案 → 评分 3（提交并写回 scheduling）
   await clickMenu(page, '复习', /今日复习/)
+  await page.waitForTimeout(400)
   await page.keyboard.press('Space')
+  await page.waitForTimeout(200)
   await page.keyboard.press('3')
-  await sleep(500)
+  await sleep(800)
 
   const saved = await fs.readFile(file, 'utf8')
   assert.ok(saved.includes('scheduling:'), '未写回 scheduling')
@@ -79,6 +82,26 @@ try {
   const items = await page.locator('aside button').allTextContents()
   assert.ok(items.some((t) => t.includes('Two Sum E2E')), '列表未包含新题解')
   console.log('✔ 真实列表包含 Two Sum E2E')
+
+  // 4) 剪贴板闭环：全选 → 编辑>复制（navigator ClipboardItem，已放行权限）→ 主进程读取
+  await page.locator('.ak-editor .ProseMirror').click()
+  await page.keyboard.press('Control+A')
+  await clickMenu(page, '编辑', /^复制$/)
+  await page.waitForTimeout(200)
+  const copied = await page.evaluate(() => window.api.clipboard.readText())
+  assert.ok(copied.includes('Two Sum E2E'), '剪贴板未收到全文：' + copied.slice(0, 40))
+  console.log('✔ 剪贴板闭环：复制→主进程读到', copied.slice(0, 24) + '…')
+
+  // 5) 粘贴闭环：主进程写入探针文本 → 编辑>粘贴 → 正文应包含探针
+  const token = '▲粘贴探针▲'
+  await page.evaluate((t) => window.api.clipboard.write({ text: t }), token)
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowDown')
+  await clickMenu(page, '编辑', /^粘贴$/)
+  await page.waitForTimeout(400)
+  const proseAfter = await page.locator('.ak-editor').innerText()
+  assert.ok(proseAfter.includes(token), '粘贴闭环失败：正文未出现探针')
+  console.log('✔ 粘贴闭环：主进程探针文本已粘贴进正文')
 
   console.log('✔✔ 真实 Electron 全链路走查通过')
 } finally {

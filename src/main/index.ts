@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu, session } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'node:path'
 import { CH } from '../shared/ipc/channels'
@@ -117,6 +117,11 @@ function loadRendererUrl(win: BrowserWindow, url: string): void {
 }
 
 app.whenReady().then(() => {
+  // 放行剪贴板（HTML 富文本复制需 navigator.clipboard 权限）
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'clipboard-sanitized-write' || permission === 'clipboard-read')
+  })
+
   registerIpc()
   installMenu()
   ipcMain.handle(CH.appNewWindow, () => createWindow())
