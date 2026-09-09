@@ -90,10 +90,10 @@ export function installFakeApi(): RendererApi {
         notesRootDefault: s.notesRootDefault ?? '<dev>/Documents',
         notesRoot: s.notesRoot ?? '<dev>/Documents',
         newCardLimit: typeof s.newCardLimit === 'number' ? s.newCardLimit : 20,
-        theme: s.theme === 'light-github' ? 'light-github' : 'dark'
+        theme: s.theme === 'dark' ? 'dark' : 'light-github'
       }
     } catch {
-      return { appRoot: '<dev>', notesRootDefault: '<dev>/Documents', notesRoot: '<dev>/Documents', newCardLimit: 20, theme: 'dark' }
+      return { appRoot: '<dev>', notesRootDefault: '<dev>/Documents', notesRoot: '<dev>/Documents', newCardLimit: 20, theme: 'light-github' }
     }
   }
 

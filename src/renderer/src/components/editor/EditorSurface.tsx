@@ -5,7 +5,8 @@ import { createLowlight, common } from 'lowlight'
 import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import MathExtension from '@aarkue/tiptap-math-extension'
-import { useCallback, useEffect, useRef, type ReactElement } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 import { Table } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
@@ -45,6 +46,8 @@ export interface EditorSurfaceProps {
   md: string
   editable: boolean
   onDocChange?: (md: string) => void
+  /** 内容区右键（文档操作快捷菜单；未提供则保留默认菜单） */
+  onOpenContext?: (e: ReactMouseEvent<HTMLElement>) => void
 }
 
 /** 从编辑器 storage 取 Markdown 输出（tiptap-markdown 未做全局类型增强，做安全收窄） */
@@ -53,7 +56,7 @@ function mdFromEditor(editor: { storage: unknown }): string {
   return storage.markdown?.getMarkdown?.() ?? ''
 }
 
-export default function EditorSurface({ md, editable, onDocChange }: EditorSurfaceProps): ReactElement {
+export default function EditorSurface({ md, editable, onDocChange, onOpenContext }: EditorSurfaceProps): ReactElement {
   // 程序性 setContent 之后 onUpdate 可能异步派发，用时间窗抑制误报“用户编辑”
   const lastApplied = useRef(0)
   const editor = useEditor({
@@ -138,7 +141,15 @@ export default function EditorSurface({ md, editable, onDocChange }: EditorSurfa
   )
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="flex h-full flex-col"
+      onContextMenu={(e) => {
+        if (onOpenContext) {
+          e.preventDefault()
+          onOpenContext(e)
+        }
+      }}
+    >
       {editable && (
       <div className="flex items-center gap-0.5 border-b border-neutral-800/70 px-2 py-1">
         {btn('B', '粗体 Ctrl+B', () => editor?.chain().focus().toggleBold().run())}

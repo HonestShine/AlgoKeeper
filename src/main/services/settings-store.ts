@@ -11,8 +11,9 @@ interface Stored {
   theme?: string
 }
 
-function clampTheme(v: unknown): 'dark' | 'light-github' {
-  return v === 'light-github' ? 'light-github' : 'dark'
+function themeOf(v: unknown): 'dark' | 'light-github' {
+  // 默认主题 = GitHub 浅色
+  return v === 'dark' ? 'dark' : 'light-github'
 }
 
 function resolveDefaults(): Pick<AppSettings, 'appRoot' | 'notesRootDefault'> {
@@ -52,7 +53,7 @@ export async function getSettings(): Promise<AppSettings> {
   const stored = await readStored()
   const notesRoot = stored.notesRoot?.trim() || def.notesRootDefault
   await fs.mkdir(notesRoot, { recursive: true })
-  return { notesRoot, ...def, newCardLimit: clampNewCardLimit(stored.newCardLimit), theme: clampTheme(stored.theme) }
+  return { notesRoot, ...def, newCardLimit: clampNewCardLimit(stored.newCardLimit), theme: themeOf(stored.theme) }
 }
 
 /** 更新并持久化（笔记目录 / 每日新卡上限 / 主题等） */
@@ -61,7 +62,7 @@ export async function updateSettings(patch: SettingsUpdate): Promise<AppSettings
   const stored = await readStored()
   const notesRoot = patch.notesRoot?.trim() ? patch.notesRoot.trim() : stored.notesRoot?.trim() || def.notesRootDefault
   const newCardLimit = clampNewCardLimit(patch.newCardLimit ?? stored.newCardLimit)
-  const theme = clampTheme(patch.theme ?? stored.theme)
+  const theme = themeOf(patch.theme ?? stored.theme)
   if (patch.notesRoot?.trim()) await fs.mkdir(notesRoot, { recursive: true })
   await persist({ notesRoot, newCardLimit, theme })
   return { notesRoot, ...def, newCardLimit, theme }

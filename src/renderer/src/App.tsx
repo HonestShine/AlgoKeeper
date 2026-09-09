@@ -151,7 +151,7 @@ export default function App(): ReactElement {
 
   // 主题应用到根节点（data-theme 驱动浅色/深色）
   useEffect(() => {
-    document.documentElement.dataset.theme = settings?.theme ?? 'dark'
+    document.documentElement.dataset.theme = settings?.theme ?? 'light-github'
   }, [settings?.theme])
 
   const saveTheme = (theme: 'dark' | 'light-github'): void => {
@@ -420,6 +420,37 @@ export default function App(): ReactElement {
       ]
     })
   }
+  // 编辑区右键：文档内容快捷操作
+  const openEditorCtx = (e: ReactMouseEvent): void => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtx({
+      ...ctxPos(e),
+      actions: [
+        { label: '撤销', run: () => void runEditorAction('undo') },
+        { label: '重做', run: () => void runEditorAction('redo') },
+        sepAction('_ec1'),
+        { label: '剪切', disabled: true, run: () => undefined },
+        { label: '复制', disabled: true, run: () => undefined },
+        { label: '粘贴', disabled: true, run: () => undefined },
+        sepAction('_ec2'),
+        { label: '加粗', run: () => void runEditorAction('bold') },
+        { label: '斜体', run: () => void runEditorAction('italic') },
+        { label: '下划线', run: () => void runEditorAction('underline') },
+        { label: '删除线', run: () => void runEditorAction('strike') },
+        { label: '代码', run: () => void runEditorAction('code') },
+        { label: '高亮', run: () => void runEditorAction('highlight') },
+        sepAction('_ec3'),
+        { label: '超链接…', run: () => void runEditorAction('link') },
+        { label: '内联公式', run: () => void runEditorAction('math-inline') },
+        { label: '插入图片…', run: () => void runEditorAction('image') },
+        sepAction('_ec4'),
+        { label: '查找和替换…', run: () => { runEditorAction('find-open'); setFindOpen(true) } },
+        { label: '全选', run: () => void runEditorAction('select-all') },
+        { label: '清除样式', run: () => void runEditorAction('clear-format') }
+      ]
+    })
+  }
   const openPaneCtx = (e: ReactMouseEvent): void => {
     e.preventDefault()
     setCtx({
@@ -666,7 +697,12 @@ export default function App(): ReactElement {
                     className="block h-full w-full resize-none bg-neutral-950 p-4 font-mono text-[13px] leading-relaxed text-neutral-200 focus:outline-none"
                   />
                 ) : (
-                  <EditorSurface md={active.md} editable onDocChange={(md) => { setActive((p) => (p ? { ...p, md } : p)); setDirty(true) }} />
+                  <EditorSurface
+                    md={active.md}
+                    editable
+                    onOpenContext={openEditorCtx}
+                    onDocChange={(md) => { setActive((p) => (p ? { ...p, md } : p)); setDirty(true) }}
+                  />
                 )
               ) : (
                 <div className="flex h-full">
@@ -892,7 +928,7 @@ export default function App(): ReactElement {
       )}
       {ctx && (
         <div
-          className="ak-ctx-menu fixed z-[60] min-w-44 rounded border border-neutral-700 bg-neutral-900 py-1 shadow-2xl"
+          className="ak-ctx-menu fixed z-[60] max-h-[70vh] min-w-44 overflow-y-auto rounded border border-neutral-700 bg-neutral-900 py-1 shadow-2xl"
           style={{ left: ctx.x, top: ctx.y }}
         >
           {ctx.actions.map((a) =>
