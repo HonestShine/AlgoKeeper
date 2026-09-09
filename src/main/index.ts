@@ -1,5 +1,6 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'node:path'
+import { registerIpc } from './ipc/register'
 
 const rendererUrl = process.env['ELECTRON_RENDERER_URL']
 
@@ -58,8 +59,7 @@ function loadRendererUrl(win: BrowserWindow, url: string): void {
 }
 
 app.whenReady().then(() => {
-  ipcMain.handle('app:ping', () => 'pong')
-
+  registerIpc()
   createWindow()
 
   app.on('activate', () => {

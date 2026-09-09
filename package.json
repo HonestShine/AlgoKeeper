@@ -19,15 +19,24 @@
     "db:migrate": "node scripts/db-note.js migrate"
   },
   "dependencies": {
+    "@aarkue/tiptap-math-extension": "^1.4.0",
+    "@tiptap/extension-code-block-lowlight": "^3.31.3",
+    "@tiptap/extension-placeholder": "^3.31.3",
     "@tiptap/pm": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "better-sqlite3": "^13.0.3",
+    "highlight.js": "^11.12.0",
+    "katex": "^0.18.7",
+    "lowlight": "^3.3.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "tiptap-markdown": "^0.9.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/katex": "^0.16.8",
     "@types/node": "^26.5.0",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
