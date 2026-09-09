@@ -89,10 +89,11 @@ export function installFakeApi(): RendererApi {
         appRoot: s.appRoot ?? '<dev>',
         notesRootDefault: s.notesRootDefault ?? '<dev>/Documents',
         notesRoot: s.notesRoot ?? '<dev>/Documents',
-        newCardLimit: typeof s.newCardLimit === 'number' ? s.newCardLimit : 20
+        newCardLimit: typeof s.newCardLimit === 'number' ? s.newCardLimit : 20,
+        theme: s.theme === 'light-github' ? 'light-github' : 'dark'
       }
     } catch {
-      return { appRoot: '<dev>', notesRootDefault: '<dev>/Documents', notesRoot: '<dev>/Documents', newCardLimit: 20 }
+      return { appRoot: '<dev>', notesRootDefault: '<dev>/Documents', notesRoot: '<dev>/Documents', newCardLimit: 20, theme: 'dark' }
     }
   }
 
@@ -186,7 +187,8 @@ export function installFakeApi(): RendererApi {
           notesRoot: p.notesRoot ?? base.notesRoot,
           newCardLimit: typeof p.newCardLimit === 'number' ? p.newCardLimit : base.newCardLimit,
           appRoot: base.appRoot,
-          notesRootDefault: base.notesRootDefault
+          notesRootDefault: base.notesRootDefault,
+          theme: p.theme ?? base.theme
         }
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
         return { settings: next }

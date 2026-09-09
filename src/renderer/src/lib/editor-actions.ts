@@ -26,6 +26,22 @@ export function runEditorAction(id: string): boolean {
       editor.chain().focus().insertContent('$x^2$').run()
       return true
     }
+    case 'callout-note':
+    case 'callout-tip':
+    case 'callout-important':
+    case 'callout-warn':
+    case 'callout-caution': {
+      const defs: Record<string, { tag: string; title: string }> = {
+        'callout-note': { tag: 'note', title: '提醒内容' },
+        'callout-tip': { tag: 'tip', title: '建议内容' },
+        'callout-important': { tag: 'important', title: '重要内容' },
+        'callout-warn': { tag: 'warning', title: '警告内容' },
+        'callout-caution': { tag: 'caution', title: '注意内容' }
+      }
+      const d = defs[id]
+      editor.chain().focus().insertContent(`\n\n> [!${d.tag}] ${d.title}\n> 在此输入${d.title}正文。\n`).run()
+      return true
+    }
     case 'blockquote': chain(editor).toggleBlockquote().run(); return true
     case 'olist': chain(editor).toggleOrderedList().run(); return true
     case 'ulist': chain(editor).toggleBulletList().run(); return true

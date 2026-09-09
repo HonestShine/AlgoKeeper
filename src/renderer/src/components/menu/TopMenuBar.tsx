@@ -142,7 +142,13 @@ const GROUPS: MenuGroup[] = [
       {
         key: 'callout',
         label: '警告框',
-        sub: [t('callout-note', '提醒内容'), t('callout-tip', '建议内容'), t('callout-important', '重要内容'), t('callout-warn', '警告内容'), t('callout-caution', '注意内容')]
+        sub: [
+          item('callout-note', '提醒内容'),
+          item('callout-tip', '建议内容'),
+          item('callout-important', '重要内容'),
+          item('callout-warn', '警告内容'),
+          item('callout-caution', '注意内容')
+        ]
       },
       e('blockquote', '引用'),
       e('olist', '有序列表'),
@@ -185,7 +191,16 @@ const GROUPS: MenuGroup[] = [
     label: '复习',
     items: [item('review-start', '今日复习…', { shortcut: 'Ctrl+Shift+R' }), item('open-dashboard', '统计看板…')]
   },
-  { label: '主题', items: [item('theme-github', 'Github', { shortcut: '' })] },
+  {
+    label: '主题',
+    items: [
+      {
+        key: 'theme',
+        label: '界面主题',
+        sub: [item('theme-dark', '深色（默认）'), item('theme-github', 'GitHub 浅色')]
+      }
+    ]
+  },
   { label: '帮助', items: [item('about', '关于…')] }
 ]
 

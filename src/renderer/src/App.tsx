@@ -149,6 +149,15 @@ export default function App(): ReactElement {
     if (api) void refreshDue()
   }, [api, refreshDue])
 
+  // 主题应用到根节点（data-theme 驱动浅色/深色）
+  useEffect(() => {
+    document.documentElement.dataset.theme = settings?.theme ?? 'dark'
+  }, [settings?.theme])
+
+  const saveTheme = (theme: 'dark' | 'light-github'): void => {
+    void api?.settings.set({ theme }).then((r) => r && setSettings(r.settings))
+  }
+
   // 打开笔记时加载双向关联（反链 + 同标签）
   const activeNoteId = active?.noteId
   useEffect(() => {
@@ -495,6 +504,12 @@ export default function App(): ReactElement {
         break
       case 'open-dashboard':
         setDashboardOpen(true)
+        break
+      case 'theme-dark':
+        saveTheme('dark')
+        break
+      case 'theme-github':
+        saveTheme('light-github')
         break
       case 'source-mode':
         if (active && mode !== 'edit') setMode('edit')

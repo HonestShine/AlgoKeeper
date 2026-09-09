@@ -8,6 +8,11 @@ export const DEFAULT_NEW_CARD_LIMIT = 20
 interface Stored {
   notesRoot?: string
   newCardLimit?: number
+  theme?: string
+}
+
+function clampTheme(v: unknown): 'dark' | 'light-github' {
+  return v === 'light-github' ? 'light-github' : 'dark'
 }
 
 function resolveDefaults(): Pick<AppSettings, 'appRoot' | 'notesRootDefault'> {
@@ -29,7 +34,7 @@ async function readStored(): Promise<Stored> {
   try {
     const raw = await fs.readFile(settingsFile(), 'utf8')
     const parsed = JSON.parse(raw) as Stored
-    return { notesRoot: parsed.notesRoot, newCardLimit: parsed.newCardLimit }
+    return { notesRoot: parsed.notesRoot, newCardLimit: parsed.newCardLimit, theme: parsed.theme }
   } catch {
     return {}
   }
@@ -47,16 +52,17 @@ export async function getSettings(): Promise<AppSettings> {
   const stored = await readStored()
   const notesRoot = stored.notesRoot?.trim() || def.notesRootDefault
   await fs.mkdir(notesRoot, { recursive: true })
-  return { notesRoot, ...def, newCardLimit: clampNewCardLimit(stored.newCardLimit) }
+  return { notesRoot, ...def, newCardLimit: clampNewCardLimit(stored.newCardLimit), theme: clampTheme(stored.theme) }
 }
 
-/** 更新并持久化（笔记目录 / 每日新卡上限等） */
+/** 更新并持久化（笔记目录 / 每日新卡上限 / 主题等） */
 export async function updateSettings(patch: SettingsUpdate): Promise<AppSettings> {
   const def = resolveDefaults()
   const stored = await readStored()
   const notesRoot = patch.notesRoot?.trim() ? patch.notesRoot.trim() : stored.notesRoot?.trim() || def.notesRootDefault
   const newCardLimit = clampNewCardLimit(patch.newCardLimit ?? stored.newCardLimit)
+  const theme = clampTheme(patch.theme ?? stored.theme)
   if (patch.notesRoot?.trim()) await fs.mkdir(notesRoot, { recursive: true })
-  await persist({ notesRoot, newCardLimit })
-  return { notesRoot, ...def, newCardLimit }
+  await persist({ notesRoot, newCardLimit, theme })
+  return { notesRoot, ...def, newCardLimit, theme }
 }
