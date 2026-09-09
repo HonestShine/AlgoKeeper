@@ -30,7 +30,8 @@ const api: RendererApi = {
     create: (draft: NewNoteDraft) => invoke(CH.notesCreate, draft),
     save: (input: SaveNoteInput) => invoke(CH.notesSave, input),
     saveAs: (input: { noteId: string; target: SaveAsTarget }) => invoke(CH.notesSaveAs, input),
-    related: (noteId: string) => invoke(CH.notesRelated, noteId)
+    related: (noteId: string) => invoke(CH.notesRelated, noteId),
+    delete: (noteId: string) => invoke(CH.notesDelete, noteId)
   },
 
   review: {

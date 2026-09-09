@@ -12,7 +12,8 @@ import SearchPalette from './components/search/SearchPalette'
 import Dashboard from './components/dashboard/Dashboard'
 import ExportDialog from './components/export/ExportDialog'
 import { parseToc } from '../../shared/utils/toc'
-import type { RelatedNotes } from '../../shared/types/export'
+import type { ExportFormat, RelatedNotes } from '../../shared/types/export'
+import { runEditorAction } from './lib/editor-actions'
 
 const DIFFICULTIES: Difficulty[] = ['Easy', 'Medium', 'Hard']
 const STATUSES: NoteStatus[] = ['active', 'to-review', 'mastered', 'need-depth']
@@ -51,6 +52,9 @@ export default function App(): ReactElement {
   const [dashboardOpen, setDashboardOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [related, setRelated] = useState<RelatedNotes | null>(null)
+  const [showSidebar, setShowSidebar] = useState(true)
+  const [showStatus, setShowStatus] = useState(true)
+  const [exportFormat, setExportFormat] = useState<ExportFormat>('md')
   const [dueCount, setDueCount] = useState(0)
   const [error, setError] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -332,6 +336,86 @@ export default function App(): ReactElement {
     })
   }
 
+  // —— 顶层菜单动作分发（菜单树 → App 能力 / 编辑器命令）——
+  const openExport = (f: ExportFormat): void => {
+    setExportFormat(f)
+    setExportOpen(true)
+  }
+  const doDelete = async (): Promise<void> => {
+    const id = active?.noteId
+    if (!id) return
+    if (!window.confirm(`删除题解 ${id}？文件将被永久删除，不可恢复。`)) return
+    try {
+      await api?.notes.delete(id)
+      setActive(null)
+      void loadSummaries()
+      void refreshDue()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+  const handleMenuAction = (key: string): void => {
+    if (runEditorAction(key)) return
+    switch (key) {
+      case 'new-note':
+        setCaptureOpen(true)
+        break
+      case 'open-note':
+      case 'open-search':
+        setSearchOpen(true)
+        break
+      case 'open-folder':
+        pickNewRoot()
+        break
+      case 'save':
+      case 'save-all':
+        void save()
+        break
+      case 'save-as':
+        openSaveAs()
+        break
+      case 'delete-note':
+        void doDelete()
+        break
+      case 'close-note':
+        if (!active) break
+        if (dirty) setError('有未保存修改，请先保存再关闭')
+        else {
+          setActive(null)
+          setMode('edit')
+        }
+        break
+      case 'export-pdf':
+        openExport('pdf')
+        break
+      case 'export-html':
+      case 'export-html-plain':
+        openExport('html')
+        break
+      case 'open-settings':
+        setSettingsOpen(true)
+        break
+      case 'review-start':
+        startReview()
+        break
+      case 'open-dashboard':
+        setDashboardOpen(true)
+        break
+      case 'toggle-filebar':
+      case 'toggle-filetree':
+        setShowSidebar((v) => !v)
+        break
+      case 'toggle-statusbar':
+        setShowStatus((v) => !v)
+        break
+      case 'about':
+        window.alert('AlgoKeeper v0.1 — 本地优先的算法题解记录 + SM-2 间隔重复桌面应用')
+        break
+      default:
+        break
+    }
+  }
+
   const wordCount = active ? active.md.replace(/[`#*_|>~]/g, '').length : 0
   const toc = active ? parseToc(active.md) : []
 
@@ -362,19 +446,15 @@ export default function App(): ReactElement {
         dirty={dirty}
         saving={saving}
         mode={mode}
-        onNew={() => setCaptureOpen(true)}
-        onSave={() => void save()}
-        onSaveAs={openSaveAs}
-        onToggleMode={toggleMode}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onReview={startReview}
-        onSearch={() => setSearchOpen(true)}
-        onDashboard={() => setDashboardOpen(true)}
-        onExport={() => setExportOpen(true)}
+        canEdit={!!active && mode === 'edit'}
+        disabledKeys={dirty || saving ? [] : ['save']}
+        onAction={handleMenuAction}
       />
       <div className="flex min-h-0 flex-1">
-        {/* 左栏 */}
-        <aside className="flex w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/60" onContextMenu={openPaneCtx}>
+        <aside
+          className={`${showSidebar ? '' : 'hidden'} flex w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/60`}
+          onContextMenu={openPaneCtx}
+        >
           <div className="border-b border-neutral-800 px-3 py-2">
             <p className="truncate text-[11px] text-neutral-500" title={settings?.notesRoot}>
               {settings?.notesRoot}
@@ -604,8 +684,9 @@ export default function App(): ReactElement {
         </aside>
       </div>
 
-      {/* 状态栏 */}
-      <footer className="flex items-center gap-4 border-t border-neutral-800 bg-neutral-900/80 px-4 py-1 text-[11px] text-neutral-500">
+      <footer
+        className={`${showStatus ? '' : 'hidden'} flex items-center gap-4 border-t border-neutral-800 bg-neutral-900/80 px-4 py-1 text-[11px] text-neutral-500`}
+      >
         <span className="flex items-center gap-1">
           {dirty ? <span className="h-2 w-2 rounded-full bg-amber-400" /> : <span className="h-2 w-2 rounded-full bg-emerald-500" />}
           {savedAt ? `最近保存 ${savedAt}` : dirty ? '有未保存修改' : '已同步'}
@@ -658,7 +739,16 @@ export default function App(): ReactElement {
         />
       )}
       {dashboardOpen && <Dashboard onClose={() => setDashboardOpen(false)} />}
-      {exportOpen && <ExportDialog noteId={active?.noteId} onClose={() => setExportOpen(false)} />}
+      {exportOpen && (
+        <ExportDialog
+          noteId={active?.noteId}
+          defaultFormat={exportFormat}
+          onClose={() => {
+            setExportFormat('md')
+            setExportOpen(false)
+          }}
+        />
+      )}
       {ctx && (
         <div
           className="ak-ctx-menu fixed z-[60] min-w-44 rounded border border-neutral-700 bg-neutral-900 py-1 shadow-2xl"

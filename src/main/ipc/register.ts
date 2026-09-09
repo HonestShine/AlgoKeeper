@@ -2,7 +2,7 @@ import { dialog, ipcMain } from 'electron'
 import { CH } from '../../shared/ipc/channels'
 import { parseProblemUrl } from '../../shared/utils/url'
 import { getSettings, updateSettings } from '../services/settings-store'
-import { createNote, listNotes, readNote, saveAsNote, saveNote } from '../services/note-store'
+import { createNote, deleteNote, listNotes, readNote, saveAsNote, saveNote } from '../services/note-store'
 import { collectDue, commitReviews } from '../services/srs-store'
 import { indexNote, recordReviewLogs } from '../services/indexer'
 import { searchNotes } from '../services/search-service'
@@ -80,6 +80,11 @@ export function registerIpc(): void {
     return note
   })
   reg(CH.notesRelated, async (noteId: string) => relatedNotes(await currentRoot(), noteId))
+  reg(CH.notesDelete, async (noteId: string) => {
+    const root = await currentRoot()
+    await deleteNote(root, noteId)
+    await indexNote(root, noteId)
+  })
   reg(CH.exportRun, async (req: ExportRequest) => {
     const root = await currentRoot()
     const res = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })

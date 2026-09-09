@@ -33,6 +33,8 @@ export interface RendererApi {
     saveAs(input: { noteId: string; target: SaveAsTarget }): Promise<LoadedNote>
     /** 双向关联：反链 + 同标签推荐 */
     related(noteId: string): Promise<RelatedNotes>
+    /** 删除题解文件（不可恢复；调用方须先确认） */
+    delete(noteId: string): Promise<void>
   }
 
   /** 间隔重复复习 */

@@ -9,6 +9,7 @@ export const CH = {
   notesCreate: 'notes:create',
   notesSave: 'notes:save',
   notesSaveAs: 'notes:save-as',
+  notesDelete: 'notes:delete',
   parseUrl: 'parse:url',
   reviewDueCount: 'review:due-count',
   reviewCollect: 'review:collect',

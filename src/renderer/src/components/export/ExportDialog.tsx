@@ -4,13 +4,14 @@ import type { ExportFormat, ExportScope, ExportVariant } from '../../../../share
 
 export interface ExportDialogProps {
   noteId?: string
+  defaultFormat?: ExportFormat
   onClose(): void
 }
 
-/** 导出：Markdown / HTML，单篇或整集；分享(剥调度) / 备份(可回导)。 */
-export default function ExportDialog({ noteId, onClose }: ExportDialogProps): ReactElement {
+/** 导出：Markdown / HTML / PDF，单篇或整集；分享(剥调度) / 备份(可回导)。 */
+export default function ExportDialog({ noteId, defaultFormat = 'md', onClose }: ExportDialogProps): ReactElement {
   const [scope, setScope] = useState<ExportScope>(noteId ? 'single' : 'all')
-  const [format, setFormat] = useState<ExportFormat>('md')
+  const [format, setFormat] = useState<ExportFormat>(defaultFormat)
   const [variant, setVariant] = useState<ExportVariant>('share')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')

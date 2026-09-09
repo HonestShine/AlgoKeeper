@@ -6,6 +6,17 @@ import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import MathExtension from '@aarkue/tiptap-math-extension'
 import { useCallback, useEffect, useRef, type ReactElement } from 'react'
+import { Table } from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
+import Highlight from '@tiptap/extension-highlight'
+import Subscript from '@tiptap/extension-subscript'
+import Superscript from '@tiptap/extension-superscript'
+import Image from '@tiptap/extension-image'
+import { getActiveEditor, setActiveEditor } from '../../lib/editor-bridge'
 import 'katex/dist/katex.min.css'
 import 'highlight.js/styles/github-dark.css'
 
@@ -16,7 +27,17 @@ const extensions = [
   CodeBlockLowlight.configure({ lowlight }),
   MathExtension.configure({ evaluation: true }),
   Markdown.configure({ html: false, tightLists: true }),
-  Placeholder.configure({ placeholder: '书写题解… 支持 Markdown、代码块、LaTeX（$…$ / $$…$$）' })
+  Placeholder.configure({ placeholder: '书写题解… 支持 Markdown、代码块、LaTeX、表格、任务清单' }),
+  Table.configure({ resizable: true }),
+  TableRow,
+  TableCell,
+  TableHeader,
+  TaskList,
+  TaskItem.configure({ nested: true }),
+  Highlight,
+  Subscript,
+  Superscript,
+  Image
 ]
 
 export interface EditorSurfaceProps {
@@ -44,6 +65,15 @@ export default function EditorSurface({ md, editable, onDocChange }: EditorSurfa
       onDocChange?.(mdFromEditor(e))
     }
   })
+
+  // 注册为全局当前编辑器（供菜单动作调用）
+  useEffect(() => {
+    if (!editor) return
+    setActiveEditor(editor)
+    return () => {
+      if (getActiveEditor() === editor) setActiveEditor(null)
+    }
+  }, [editor])
 
   // 外部切换笔记（md 变化）时同步编辑器内容；与编辑输出一致则跳过
   useEffect(() => {

@@ -255,6 +255,10 @@ export function installFakeApi(): RendererApi {
           .slice(0, 5)
           .map((x) => x.s)
         return { backlinks, similar }
+      },
+      delete: async (noteId: string) => {
+        notes = notes.filter((n) => n.noteId !== noteId)
+        persist(notes)
       }
     },
     review: {

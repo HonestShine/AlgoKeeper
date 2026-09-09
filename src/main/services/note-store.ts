@@ -157,6 +157,23 @@ export async function saveNote(root: string, input: SaveNoteInput): Promise<{ no
   return { noteId: input.noteId, updatedAt: meta.updatedAt }
 }
 
+/** 删除题解文件（不可恢复）。 */
+export async function deleteNote(root: string, noteId: string): Promise<void> {
+  assertSafeNoteId(noteId)
+  const file = notePath(root, noteId)
+  try {
+    await fs.unlink(file)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
+  // 清理可能存在的空目录
+  try {
+    await fs.rmdir(dirname(file))
+  } catch {
+    /* 目录非空则保留 */
+  }
+}
+
 /** 原子写：临时文件 + rename，避免写一半损坏（NFR-5） */
 export async function atomicWrite(file: string, content: string): Promise<void> {
   const dir = dirname(file)
