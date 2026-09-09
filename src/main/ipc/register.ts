@@ -1,11 +1,12 @@
 import { dialog, ipcMain } from 'electron'
 import { CH } from '../../shared/ipc/channels'
 import { parseProblemUrl } from '../../shared/utils/url'
-import { getSettings, setNotesRoot } from '../services/settings-store'
+import { getSettings, updateSettings } from '../services/settings-store'
 import { createNote, listNotes, readNote, saveAsNote, saveNote } from '../services/note-store'
 import { collectDue, commitReviews } from '../services/srs-store'
 import type { NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
-import type { ReviewResult } from '../../shared/types/srs'
+import type { ReviewFilter, ReviewResult } from '../../shared/types/srs'
+import type { SettingsUpdate } from '../../shared/types/settings'
 
 /** 统一把领域错误格式化为可经 IPC 透传的 Error（`[code] message`）。 */
 function toIpcError(err: unknown): Error {
@@ -30,18 +31,24 @@ async function currentRoot(): Promise<string> {
   return (await getSettings()).notesRoot
 }
 
+/** review 队列过滤默认带上设置的每日新卡上限 */
+async function withDefaultLimit(filter: ReviewFilter = {}): Promise<ReviewFilter> {
+  const settings = await getSettings()
+  return { ...filter, newLimit: filter.newLimit ?? settings.newCardLimit }
+}
+
 export function registerIpc(): void {
   reg(CH.ping, async () => 'pong')
 
   reg(CH.settingsGet, async () => ({ settings: await getSettings() }))
-  reg(CH.settingsSet, async (payload: { notesRoot?: string }) => {
-    if (!payload?.notesRoot) throw Object.assign(new Error('notesRoot 必填'), { code: 'settings.missing' })
-    return { settings: await setNotesRoot(payload.notesRoot) }
+  reg(CH.settingsSet, async (payload: SettingsUpdate) => {
+    if (!payload || Object.keys(payload).length === 0) return { settings: await getSettings() }
+    return { settings: await updateSettings(payload) }
   })
   reg(CH.settingsPick, async () => {
     const res = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
     if (res.canceled || res.filePaths.length === 0) return null
-    return { settings: await setNotesRoot(res.filePaths[0]) }
+    return { settings: await updateSettings({ notesRoot: res.filePaths[0] }) }
   })
 
   reg(CH.notesList, async () => listNotes(await currentRoot()))
@@ -51,8 +58,8 @@ export function registerIpc(): void {
   reg(CH.notesSaveAs, async (input: { noteId: string; target: SaveAsTarget }) =>
     saveAsNote(await currentRoot(), input.noteId, input.target)
   )
-  reg(CH.reviewDueCount, async () => (await collectDue(await currentRoot())).length)
-  reg(CH.reviewCollect, async () => collectDue(await currentRoot()))
+  reg(CH.reviewDueCount, async (filter?: ReviewFilter) => (await collectDue(await currentRoot(), await withDefaultLimit(filter))).length)
+  reg(CH.reviewCollect, async (filter?: ReviewFilter) => collectDue(await currentRoot(), await withDefaultLimit(filter)))
   reg(CH.reviewCommit, async (results: ReviewResult[]) => commitReviews(await currentRoot(), results))
   reg(CH.parseUrl, async (raw: string) => parseProblemUrl(raw))
 }

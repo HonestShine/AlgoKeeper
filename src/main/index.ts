@@ -22,8 +22,6 @@ function installMenu(): void {
         { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction('save') },
         { label: '另存为…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenuAction('save-as') },
         { type: 'separator' },
-        { label: '更换笔记目录…', click: () => sendMenuAction('change-root') },
-        { type: 'separator' },
         { role: 'quit', label: '退出' }
       ]
     },
@@ -46,6 +44,13 @@ function installMenu(): void {
         { label: '今日复习…', accelerator: 'CmdOrCtrl+Shift+R', click: () => sendMenuAction('review-start') },
         { type: 'separator' },
         { role: 'togglefullscreen', label: '全屏' }
+      ]
+    },
+    {
+      label: '设置',
+      submenu: [
+        { label: '偏好设置…', accelerator: 'CmdOrCtrl+,', click: () => sendMenuAction('open-settings') },
+        { label: '更换笔记目录…', click: () => sendMenuAction('change-root') }
       ]
     },
     { role: 'windowMenu', label: '窗口' }

@@ -5,7 +5,7 @@
 import type { MenuAction, RendererApi } from '../../shared/types/ipc'
 import type { FileMeta, LoadedNote, NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
 import type { AppSettings } from '../../shared/types/settings'
-import type { CardSessionItem, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
+import type { CardSessionItem, ReviewFilter, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
 import { parseProblemUrl } from '../../shared/utils/url'
 import { todayKey } from '../../shared/utils/date'
 import { newCardScheduling, schedule } from '../../shared/utils/sm2'
@@ -78,6 +78,20 @@ export function installFakeApi(): RendererApi {
     filePath: `<virtual>/${n.noteId}.md`
   })
 
+  const readSettingsSync = (): AppSettings => {
+    try {
+      const s = (JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') as Partial<AppSettings>) ?? {}
+      return {
+        appRoot: s.appRoot ?? '<dev>',
+        notesRootDefault: s.notesRootDefault ?? '<dev>/Documents',
+        notesRoot: s.notesRoot ?? '<dev>/Documents',
+        newCardLimit: typeof s.newCardLimit === 'number' ? s.newCardLimit : 20
+      }
+    } catch {
+      return { appRoot: '<dev>', notesRootDefault: '<dev>/Documents', notesRoot: '<dev>/Documents', newCardLimit: 20 }
+    }
+  }
+
   type SchedStore = Record<string, { main?: SchedulingInfo; cards?: Record<string, SchedulingInfo> }>
   const SCHED_KEY = 'alk:sched'
   const readSched = (): SchedStore => {
@@ -90,59 +104,77 @@ export function installFakeApi(): RendererApi {
   const writeSched = (s: SchedStore): void => {
     localStorage.setItem(SCHED_KEY, JSON.stringify(s))
   }
-  const collectCards = (): CardSessionItem[] => {
+  const collectCards = (filter: ReviewFilter = {}): CardSessionItem[] => {
     const today = todayKey()
     const sched = readSched()
-    const out: CardSessionItem[] = []
+    const newLimit = filter.newLimit ?? readSettingsSync().newCardLimit
+    const passes = (item: CardSessionItem): boolean => {
+      if (filter.difficulty && item.difficulty !== filter.difficulty) return false
+      if (filter.tags && filter.tags.length > 0 && !filter.tags.some((t) => item.tags.includes(t))) return false
+      return true
+    }
+    const dueItems: CardSessionItem[] = []
+    const newItems: CardSessionItem[] = []
     for (const n of notes) {
       const ns = sched[n.noteId] ?? {}
+      const difficulty = n.meta.difficulty
+      const tags = n.meta.tags
+      const wholeNew = ns.main === undefined
       const main = ns.main ?? newCardScheduling(today)
-      if (main.due <= today) {
-        out.push({
-          cardId: `${n.noteId}::main`,
-          noteId: n.noteId,
-          noteTitle: n.meta.title,
-          kind: 'whole',
-          question: `回顾 “${n.meta.title}” 的完整解法`,
-          answerText: n.bodyMd,
-          due: main.due,
-          isNew: ns.main === undefined
-        })
+      const wholeItem: CardSessionItem = {
+        cardId: `${n.noteId}::main`,
+        noteId: n.noteId,
+        noteTitle: n.meta.title,
+        difficulty,
+        tags,
+        kind: 'whole',
+        question: `回顾 “${n.meta.title}” 的完整解法`,
+        answerText: n.bodyMd,
+        due: main.due,
+        isNew: wholeNew
+      }
+      if (passes(wholeItem)) {
+        if (wholeNew) newItems.push(wholeItem)
+        else if (main.due <= today) dueItems.push(wholeItem)
       }
       const cards = ns.cards ?? {}
       for (const line of parseBodyCards(n.bodyMd)) {
+        const isNew = cards[line.qhash] === undefined
         const c = cards[line.qhash] ?? newCardScheduling(today)
-        if (c.due <= today) {
-          out.push({
-            cardId: `${n.noteId}::${line.qhash}`,
-            noteId: n.noteId,
-            noteTitle: n.meta.title,
-            kind: 'split',
-            question: line.question,
-            answerText: line.answer,
-            due: c.due,
-            isNew: cards[line.qhash] === undefined
-          })
+        const item: CardSessionItem = {
+          cardId: `${n.noteId}::${line.qhash}`,
+          noteId: n.noteId,
+          noteTitle: n.meta.title,
+          difficulty,
+          tags,
+          kind: 'split',
+          question: line.question,
+          answerText: line.answer,
+          due: c.due,
+          isNew
         }
+        if (!passes(item)) continue
+        if (isNew) newItems.push(item)
+        else if (c.due <= today) dueItems.push(item)
       }
     }
-    return out
+    const cappedNew = newLimit >= 0 ? newItems.slice(0, newLimit) : newItems
+    return [...dueItems, ...cappedNew]
   }
 
   const api: RendererApi = {
     ping: async () => 'pong',
     versions: { electron: '(fake)', node: '' },
     settings: {
-      get: async () => {
-        const stored = localStorage.getItem(SETTINGS_KEY)
-        const payload = stored
-          ? (JSON.parse(stored) as AppSettings)
-          : { appRoot: '<dev>', notesRootDefault: '<dev>/Documents', notesRoot: '<dev>/Documents' }
-        return { settings: payload }
-      },
+      get: async () => ({ settings: readSettingsSync() }),
       set: async (p) => {
-        const base = await api.settings.get()
-        const next: AppSettings = { ...base.settings, notesRoot: p.notesRoot ?? base.settings.notesRoot }
+        const base = readSettingsSync()
+        const next: AppSettings = {
+          notesRoot: p.notesRoot ?? base.notesRoot,
+          newCardLimit: typeof p.newCardLimit === 'number' ? p.newCardLimit : base.newCardLimit,
+          appRoot: base.appRoot,
+          notesRootDefault: base.notesRootDefault
+        }
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
         return { settings: next }
       },
@@ -194,8 +226,8 @@ export function installFakeApi(): RendererApi {
       }
     },
     review: {
-      dueCount: async () => collectCards().length,
-      collect: async () => collectCards(),
+      dueCount: async (filter?: ReviewFilter) => collectCards(filter).length,
+      collect: async (filter?: ReviewFilter) => collectCards(filter),
       commit: async (results: ReviewResult[]) => {
         const today = todayKey()
         const sched = readSched()

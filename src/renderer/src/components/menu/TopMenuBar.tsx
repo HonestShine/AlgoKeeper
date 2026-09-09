@@ -1,13 +1,6 @@
 import { useState } from 'react'
 import type { ReactElement } from 'react'
 
-export interface MenuItemDef {
-  key: string
-  label: string
-  shortcut?: string
-  disabled?: boolean
-}
-
 export interface TopMenuBarProps {
   dueCount: number
   dirty: boolean
@@ -17,8 +10,15 @@ export interface TopMenuBarProps {
   onSave(): void
   onSaveAs(): void
   onToggleMode(): void
-  onChangeRoot(): void
+  onOpenSettings(): void
   onReview(): void
+}
+
+interface MenuItemDef {
+  key: string
+  label: string
+  shortcut?: string
+  disabled?: boolean
 }
 
 interface Group {
@@ -40,7 +40,6 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
         { key: 'save-as', label: '另存为…', shortcut: 'Ctrl+Shift+S' }
       ]
     },
-    { key: 'edit', label: '编辑', items: [] },
     {
       key: 'view',
       label: '视图',
@@ -50,6 +49,11 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
       key: 'review',
       label: `复习${p.dueCount > 0 ? ` (${p.dueCount})` : ''}`,
       items: [{ key: 'start', label: '今日复习…', shortcut: 'Ctrl+Shift+R' }]
+    },
+    {
+      key: 'settings',
+      label: '设置',
+      items: [{ key: 'open-settings', label: '偏好设置…', shortcut: 'Ctrl+,' }]
     }
   ]
 
@@ -72,6 +76,9 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
       case 'start':
         p.onReview()
         break
+      case 'open-settings':
+        p.onOpenSettings()
+        break
     }
   }
 
@@ -82,7 +89,7 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
           <button
             type="button"
             onClick={() => setOpen(open === g.key ? null : g.key)}
-            className={`rounded px-2.5 py-1 hover:bg-neutral-800 ${open === g.key ? 'bg-neutral-800' : ''}`}
+            className={`relative z-50 rounded px-2.5 py-1 hover:bg-neutral-800 ${open === g.key ? 'bg-neutral-800' : ''}`}
           >
             {g.label}
           </button>
@@ -107,11 +114,7 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
           )}
         </div>
       ))}
-      <div className="ml-auto flex items-center gap-3 pr-2 text-[11px] text-neutral-600">
-        <button type="button" className="hover:text-neutral-300" onClick={p.onChangeRoot}>
-          更换目录
-        </button>
-      </div>
+      <div className="ml-auto pr-1 text-[11px] text-neutral-700">AlgoKeeper</div>
     </div>
   )
 }

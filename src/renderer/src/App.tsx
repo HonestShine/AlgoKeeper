@@ -7,6 +7,7 @@ import QuickCaptureDialog from './components/capture/QuickCaptureDialog'
 import SaveAsDialog from './components/capture/SaveAsDialog'
 import ReviewSession from './components/review/ReviewSession'
 import TopMenuBar from './components/menu/TopMenuBar'
+import SettingsDialog from './components/settings/SettingsDialog'
 
 const DIFFICULTIES: Difficulty[] = ['Easy', 'Medium', 'Hard']
 const STATUSES: NoteStatus[] = ['active', 'to-review', 'mastered', 'need-depth']
@@ -40,6 +41,7 @@ export default function App(): ReactElement {
   const [captureOpen, setCaptureOpen] = useState(false)
   const [saveAsOpen, setSaveAsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [dueCount, setDueCount] = useState(0)
   const [error, setError] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -169,6 +171,9 @@ export default function App(): ReactElement {
         case 'review-start':
           startReview()
           break
+        case 'open-settings':
+          setSettingsOpen(true)
+          break
       }
     })
   }, [api, save, openSaveAs, toggleMode, pickNewRoot, startReview])
@@ -178,7 +183,10 @@ export default function App(): ReactElement {
     const onKey = (e: KeyboardEvent): void => {
       const ctrl = e.ctrlKey || e.metaKey
       if (!ctrl || e.altKey) return
-      if (e.shiftKey && (e.key === 'N' || e.key === 'n')) {
+      if (e.key === ',') {
+        e.preventDefault()
+        setSettingsOpen(true)
+      } else if (e.shiftKey && (e.key === 'N' || e.key === 'n')) {
         e.preventDefault()
         setCaptureOpen(true)
       } else if (e.shiftKey && (e.key === 'R' || e.key === 'r')) {
@@ -266,7 +274,7 @@ export default function App(): ReactElement {
         onSave={() => void save()}
         onSaveAs={openSaveAs}
         onToggleMode={toggleMode}
-        onChangeRoot={pickNewRoot}
+        onOpenSettings={() => setSettingsOpen(true)}
         onReview={startReview}
       />
       <div className="flex min-h-0 flex-1">
@@ -317,9 +325,9 @@ export default function App(): ReactElement {
             <button
               type="button"
               className="w-full rounded border border-neutral-700 px-2 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
-              onClick={pickNewRoot}
+              onClick={() => setSettingsOpen(true)}
             >
-              更换笔记目录…
+              设置…
             </button>
           </div>
         </aside>
@@ -499,6 +507,16 @@ export default function App(): ReactElement {
             setReviewOpen(false)
             void refreshDue()
             void loadSummaries()
+          }}
+        />
+      )}
+      {settingsOpen && settings && (
+        <SettingsDialog
+          settings={settings}
+          onClose={() => setSettingsOpen(false)}
+          onSettingsChanged={(s) => {
+            setSettings(s)
+            void refreshDue()
           }}
         />
       )}

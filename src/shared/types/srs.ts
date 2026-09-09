@@ -1,4 +1,14 @@
 /** 间隔重复（SRS）领域类型：调度信息、复习队列项。 */
+import type { Difficulty } from './note'
+
+export interface ReviewFilter {
+  /** 仅复习指定难度；缺省全部 */
+  difficulty?: Difficulty
+  /** 仅复习命中任一标签的题（any-of）；缺省全部 */
+  tags?: string[]
+  /** 每日新卡上限；缺省用设置默认 20 */
+  newLimit?: number
+}
 
 export interface SchedulingInfo {
   /** 连续答对次数（失败重置 0） */
@@ -27,6 +37,8 @@ export interface CardSessionItem {
   cardId: string // whole: `${noteId}::main`；split: `${noteId}::${qhash}`
   noteId: string
   noteTitle: string
+  difficulty: Difficulty
+  tags: string[]
   kind: CardKind
   question: string
   answerText: string // whole=整篇正文；split=答案

@@ -4,7 +4,7 @@ import { buildNoteMd, parseFrontmatter } from './markdown-parser'
 import { parseBodyCards } from '../../shared/utils/cards'
 import { newCardScheduling, schedule } from '../../shared/utils/sm2'
 import { todayKey } from '../../shared/utils/date'
-import type { CardSessionItem, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
+import type { CardSessionItem, ReviewFilter, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -33,10 +33,18 @@ export function isValidGrade(g: unknown): g is ReviewResult['grade'] {
   return typeof g === 'number' && GRADES.has(g)
 }
 
-/** 收集今日到期 + 新卡队列（按 CardSessionItem） */
-export async function collectDue(root: string): Promise<CardSessionItem[]> {
+/** 收集到期 + 新卡队列（按 CardSessionItem；新卡受 newLimit 上限）。 */
+export async function collectDue(root: string, filter: ReviewFilter = {}): Promise<CardSessionItem[]> {
   const today = todayKey()
-  const out: CardSessionItem[] = []
+  const dueItems: CardSessionItem[] = []
+  const newItems: CardSessionItem[] = []
+  const passes = (item: CardSessionItem): boolean => {
+    if (filter.difficulty && item.difficulty !== filter.difficulty) return false
+    if (filter.tags && filter.tags.length > 0 && !filter.tags.some((t) => item.tags.includes(t))) return false
+    return true
+  }
+  const newLimit = filter.newLimit
+
   for (const s of await listNotes(root)) {
     let raw: string
     try {
@@ -45,41 +53,52 @@ export async function collectDue(root: string): Promise<CardSessionItem[]> {
       continue
     }
     const parsed = parseFrontmatter(raw)
+    const difficulty = parsed.meta.difficulty
+    const tags = parsed.meta.tags
     const schedRoot = isRecord(parsed.extras['scheduling']) ? parsed.extras['scheduling'] : {}
     const mainRaw = schedRoot['main']
     const mainSched = toScheduling(mainRaw) ?? newCardScheduling(today)
-
-    if (mainSched.due <= today) {
-      out.push({
-        cardId: `${s.noteId}::main`,
-        noteId: s.noteId,
-        noteTitle: parsed.meta.title || s.title,
-        kind: 'whole',
-        question: `回顾 “${parsed.meta.title || s.title}” 的完整解法`,
-        answerText: parsed.bodyMd,
-        due: mainSched.due,
-        isNew: mainRaw === undefined
-      })
+    const wholeItem: CardSessionItem = {
+      cardId: `${s.noteId}::main`,
+      noteId: s.noteId,
+      noteTitle: parsed.meta.title || s.title,
+      difficulty,
+      tags,
+      kind: 'whole',
+      question: `回顾 “${parsed.meta.title || s.title}” 的完整解法`,
+      answerText: parsed.bodyMd,
+      due: mainSched.due,
+      isNew: mainRaw === undefined
+    }
+    if (passes(wholeItem)) {
+      if (wholeItem.isNew) newItems.push(wholeItem)
+      else if (mainSched.due <= today) dueItems.push(wholeItem)
     }
 
     const cardsRaw = isRecord(schedRoot['cards']) ? (schedRoot['cards'] as Record<string, unknown>) : {}
     for (const line of parseBodyCards(parsed.bodyMd)) {
       const sched = toScheduling(cardsRaw[line.qhash]) ?? newCardScheduling(today)
-      if (sched.due <= today) {
-        out.push({
-          cardId: `${s.noteId}::${line.qhash}`,
-          noteId: s.noteId,
-          noteTitle: parsed.meta.title || s.title,
-          kind: 'split',
-          question: line.question,
-          answerText: line.answer,
-          due: sched.due,
-          isNew: cardsRaw[line.qhash] === undefined
-        })
+      const isNew = cardsRaw[line.qhash] === undefined
+      const item: CardSessionItem = {
+        cardId: `${s.noteId}::${line.qhash}`,
+        noteId: s.noteId,
+        noteTitle: parsed.meta.title || s.title,
+        difficulty,
+        tags,
+        kind: 'split',
+        question: line.question,
+        answerText: line.answer,
+        due: sched.due,
+        isNew
       }
+      if (!passes(item)) continue
+      if (isNew) newItems.push(item)
+      else if (sched.due <= today) dueItems.push(item)
     }
   }
-  return out
+
+  const cappedNew = typeof newLimit === 'number' && newLimit >= 0 ? newItems.slice(0, newLimit) : newItems
+  return [...dueItems, ...cappedNew]
 }
 
 /** 提交一批评分：按 note 聚合，更新 scheduling 到 frontmatter 后原子写。返回写入的笔记数。 */

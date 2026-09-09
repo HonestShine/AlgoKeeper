@@ -13,8 +13,8 @@ export interface RendererApi {
   settings: {
     /** 读取当前设置；确保默认 <appRoot>/Documents 存在 */
     get(): Promise<SettingsPayload>
-    /** 更新设置（如切换 notesRoot），并确保新目录存在 */
-    set(partial: { notesRoot?: string }): Promise<SettingsPayload>
+    /** 更新设置（笔记目录 / 每日新卡上限等），并持久化 */
+    set(update: SettingsUpdate): Promise<SettingsPayload>
     /** 弹出目录选择对话框；取消返回 null（选中后即写入并返回新设置） */
     pickRoot(): Promise<SettingsPayload | null>
   }
@@ -35,10 +35,10 @@ export interface RendererApi {
 
   /** 间隔重复复习 */
   review: {
-    /** 今日到期 + 新卡总数 */
-    dueCount(): Promise<number>
+    /** 今日到期 + 新卡总数（受新卡上限；可按难度/标签过滤） */
+    dueCount(filter?: ReviewFilter): Promise<number>
     /** 拉取今日复习队列 */
-    collect(): Promise<CardSessionItem[]>
+    collect(filter?: ReviewFilter): Promise<CardSessionItem[]>
     /** 提交评分并写回 frontmatter；返回写入笔记数 */
     commit(results: ReviewResult[]): Promise<number>
   }
@@ -50,13 +50,22 @@ export interface RendererApi {
   onMenuAction(cb: (action: MenuAction) => void): () => void
 }
 
-export type MenuAction = 'new-note' | 'save' | 'save-as' | 'toggle-mode' | 'change-root' | 'review-start'
+export type MenuAction =
+  | 'new-note'
+  | 'save'
+  | 'save-as'
+  | 'toggle-mode'
+  | 'change-root'
+  | 'review-start'
+  | 'open-settings'
 
 export interface SettingsPayload {
   settings: Settings
 }
 
 type Settings = import('./settings').AppSettings
+type SettingsUpdate = import('./settings').SettingsUpdate
+type ReviewFilter = import('./srs').ReviewFilter
 type ParsedProblemUrl = import('../utils/url').ParsedProblemUrl
 type NoteSummary = import('./note').NoteSummary
 type LoadedNote = import('./note').LoadedNote

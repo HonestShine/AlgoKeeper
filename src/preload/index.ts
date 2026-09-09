@@ -3,7 +3,7 @@ import type { IpcRendererEvent } from 'electron'
 import { CH } from '../shared/ipc/channels'
 import type { MenuAction, RendererApi } from '../shared/types/ipc'
 import type { NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../shared/types/note'
-import type { ReviewResult } from '../shared/types/srs'
+import type { ReviewFilter, ReviewResult } from '../shared/types/srs'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
   return ipcRenderer.invoke(channel, ...args) as Promise<T>
@@ -31,8 +31,8 @@ const api: RendererApi = {
   },
 
   review: {
-    dueCount: () => invoke(CH.reviewDueCount),
-    collect: () => invoke(CH.reviewCollect),
+    dueCount: (filter?: ReviewFilter) => invoke(CH.reviewDueCount, filter),
+    collect: (filter?: ReviewFilter) => invoke(CH.reviewCollect, filter),
     commit: (results: ReviewResult[]) => invoke(CH.reviewCommit, results)
   },
 
