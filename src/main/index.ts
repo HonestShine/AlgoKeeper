@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { CH } from '../shared/ipc/channels'
 import type { MenuAction } from '../shared/types/ipc'
 import { registerIpc } from './ipc/register'
+import { getSettings } from './services/settings-store'
+import { syncAll } from './services/indexer'
 
 const rendererUrl = process.env['ELECTRON_RENDERER_URL']
 
@@ -116,6 +118,17 @@ app.whenReady().then(() => {
   registerIpc()
   installMenu()
   createWindow()
+
+  // 启动时把笔记目录全量同步进 SQLite 索引（失败不阻塞窗口，仅记录）
+  void (async () => {
+    try {
+      const root = (await getSettings()).notesRoot
+      const count = await syncAll(root)
+      console.log(`[index] 已同步 ${count} 篇笔记`)
+    } catch (err) {
+      console.error('[index] 索引同步失败', err)
+    }
+  })()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

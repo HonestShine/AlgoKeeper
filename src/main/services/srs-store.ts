@@ -4,11 +4,14 @@ import { buildNoteMd, parseFrontmatter } from './markdown-parser'
 import { parseBodyCards } from '../../shared/utils/cards'
 import { newCardScheduling, schedule } from '../../shared/utils/sm2'
 import { todayKey } from '../../shared/utils/date'
-import type { CardSessionItem, ReviewFilter, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
+import type { CardSessionItem, ReviewCommitOutcome, ReviewFilter, ReviewLogEntry, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
+
+/** 供 indexer 等复用：frontmatter 调度对象 → SchedulingInfo（导出版） */
+export { toScheduling as schedFromUnknown }
 
 function num(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined
@@ -101,8 +104,8 @@ export async function collectDue(root: string, filter: ReviewFilter = {}): Promi
   return [...dueItems, ...cappedNew]
 }
 
-/** 提交一批评分：按 note 聚合，更新 scheduling 到 frontmatter 后原子写。返回写入的笔记数。 */
-export async function commitReviews(root: string, results: ReviewResult[]): Promise<number> {
+/** 提交一批评分：按 note 聚合，更新 scheduling 到 frontmatter 后原子写。返回写入数与日志。 */
+export async function commitReviews(root: string, results: ReviewResult[]): Promise<ReviewCommitOutcome> {
   const today = todayKey()
   const byNote = new Map<string, Map<string, ReviewResult>>()
   for (const r of results) {
@@ -120,6 +123,7 @@ export async function commitReviews(root: string, results: ReviewResult[]): Prom
   }
 
   let written = 0
+  const logs: ReviewLogEntry[] = []
   for (const [noteId, resultsMap] of byNote) {
     const file = noteFilePath(root, noteId)
     let raw: string
@@ -139,6 +143,15 @@ export async function commitReviews(root: string, results: ReviewResult[]): Prom
       const updated = schedule(r.grade, current, today)
       if (key === 'main') nextMain = updated
       else nextCards[key] = updated
+      logs.push({
+        cardId: r.cardId,
+        noteId,
+        grade: r.grade,
+        ts: new Date().toISOString(),
+        intervalBefore: current.interval,
+        intervalAfter: updated.interval,
+        easeAfter: updated.easeFactor
+      })
     }
 
     const nextRoot: Record<string, unknown> = {}
@@ -149,5 +162,5 @@ export async function commitReviews(root: string, results: ReviewResult[]): Prom
     await atomicWrite(file, buildNoteMd(meta, bodyMd, extras))
     written++
   }
-  return written
+  return { written, logs }
 }

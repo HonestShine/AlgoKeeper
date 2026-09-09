@@ -4,6 +4,7 @@ import { parseProblemUrl } from '../../shared/utils/url'
 import { getSettings, updateSettings } from '../services/settings-store'
 import { createNote, listNotes, readNote, saveAsNote, saveNote } from '../services/note-store'
 import { collectDue, commitReviews } from '../services/srs-store'
+import { indexNote, recordReviewLogs } from '../services/indexer'
 import type { NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
 import type { ReviewFilter, ReviewResult } from '../../shared/types/srs'
 import type { SettingsUpdate } from '../../shared/types/settings'
@@ -53,13 +54,33 @@ export function registerIpc(): void {
 
   reg(CH.notesList, async () => listNotes(await currentRoot()))
   reg(CH.notesGet, async (noteId: string) => readNote(await currentRoot(), noteId))
-  reg(CH.notesCreate, async (draft: NewNoteDraft) => createNote(await currentRoot(), draft))
-  reg(CH.notesSave, async (input: SaveNoteInput) => saveNote(await currentRoot(), input))
-  reg(CH.notesSaveAs, async (input: { noteId: string; target: SaveAsTarget }) =>
-    saveAsNote(await currentRoot(), input.noteId, input.target)
-  )
+  reg(CH.notesCreate, async (draft: NewNoteDraft) => {
+    const root = await currentRoot()
+    const note = await createNote(root, draft)
+    await indexNote(root, note.noteId)
+    return note
+  })
+  reg(CH.notesSave, async (input: SaveNoteInput) => {
+    const root = await currentRoot()
+    const res = await saveNote(root, input)
+    await indexNote(root, input.noteId)
+    return res
+  })
+  reg(CH.notesSaveAs, async (input: { noteId: string; target: SaveAsTarget }) => {
+    const root = await currentRoot()
+    const note = await saveAsNote(root, input.noteId, input.target)
+    await indexNote(root, note.noteId)
+    return note
+  })
   reg(CH.reviewDueCount, async (filter?: ReviewFilter) => (await collectDue(await currentRoot(), await withDefaultLimit(filter))).length)
   reg(CH.reviewCollect, async (filter?: ReviewFilter) => collectDue(await currentRoot(), await withDefaultLimit(filter)))
-  reg(CH.reviewCommit, async (results: ReviewResult[]) => commitReviews(await currentRoot(), results))
+  reg(CH.reviewCommit, async (results: ReviewResult[]) => {
+    const root = await currentRoot()
+    const outcome = await commitReviews(root, results)
+    recordReviewLogs(outcome.logs)
+    const touched = [...new Set(outcome.logs.map((l) => l.noteId))]
+    for (const noteId of touched) await indexNote(root, noteId)
+    return outcome.written
+  })
   reg(CH.parseUrl, async (raw: string) => parseProblemUrl(raw))
 }

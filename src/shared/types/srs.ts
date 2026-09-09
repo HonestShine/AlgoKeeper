@@ -50,3 +50,19 @@ export interface ReviewResult {
   cardId: string
   grade: 1 | 2 | 3 | 4
 }
+
+/** 复习日志条目（落库分析用，非权威） */
+export interface ReviewLogEntry {
+  cardId: string
+  noteId: string
+  ts: string
+  grade: 1 | 2 | 3 | 4
+  intervalBefore?: number
+  intervalAfter?: number
+  easeAfter?: number
+}
+
+export interface ReviewCommitOutcome {
+  written: number
+  logs: ReviewLogEntry[]
+}
