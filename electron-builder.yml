@@ -10,6 +10,7 @@ asar: true
 win:
   target: nsis
   executableName: algokeeper
+  artifactName: AlgoKeeper_64bit-v${version}.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
