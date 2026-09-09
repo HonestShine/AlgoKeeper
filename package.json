@@ -15,6 +15,7 @@
     "lint": "npm run typecheck && eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "e2e:electron": "npm run build && node scripts/e2e-electron.mjs",
     "db:init": "node scripts/db-note.js init",
     "db:migrate": "node scripts/db-note.js migrate"
   },
@@ -60,6 +61,7 @@
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "eslint": "^10.10.0",
+    "playwright-core": "^1.63.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.3",
