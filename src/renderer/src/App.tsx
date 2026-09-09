@@ -454,9 +454,20 @@ export default function App(): ReactElement {
                     <aside className="w-44 shrink-0 overflow-y-auto border-r border-neutral-800/70 px-3 py-3 text-xs">
                       <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-600">大纲</p>
                       {toc.map((item, i) => (
-                        <p key={i} className="truncate py-0.5 text-neutral-400" style={{ paddingLeft: `${(item.depth - 1) * 10}px` }}>
+                        <button
+                          key={i}
+                          type="button"
+                          className="block w-full truncate rounded py-0.5 text-left text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+                          style={{ paddingLeft: `${(item.depth - 1) * 10}px` }}
+                          onClick={() => {
+                            const el = Array.from(
+                              document.querySelectorAll('.ak-editor h1, .ak-editor h2, .ak-editor h3, .ak-editor h4, .ak-editor h5, .ak-editor h6')
+                            ).find((h) => h.textContent?.trim() === item.text)
+                            el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          }}
+                        >
                           {item.text}
-                        </p>
+                        </button>
                       ))}
                     </aside>
                   )}

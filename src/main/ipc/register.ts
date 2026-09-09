@@ -9,6 +9,7 @@ import { searchNotes } from '../services/search-service'
 import { statsOverview } from '../services/stats-service'
 import { relatedNotes } from '../services/related-service'
 import { exportScope } from '../services/exporter'
+import { exportPdf } from '../services/pdf-exporter'
 import type { SearchFilter } from '../../shared/types/insight'
 import type { ExportRequest } from '../../shared/types/export'
 import type { NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
@@ -80,13 +81,12 @@ export function registerIpc(): void {
   })
   reg(CH.notesRelated, async (noteId: string) => relatedNotes(await currentRoot(), noteId))
   reg(CH.exportRun, async (req: ExportRequest) => {
-    if (req.format === 'pdf') {
-      throw Object.assign(new Error('PDF 导出尚未实现，请使用 Markdown / HTML'), { code: 'export.pdf' })
-    }
     const root = await currentRoot()
     const res = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] })
     if (res.canceled || res.filePaths.length === 0) return null
-    return exportScope(root, res.filePaths[0], req)
+    const outDir = res.filePaths[0]
+    if (req.format === 'pdf') return exportPdf(root, outDir, req.scope, req.noteId, req.variant)
+    return exportScope(root, outDir, req)
   })
   reg(CH.reviewDueCount, async (filter?: ReviewFilter) => (await collectDue(await currentRoot(), await withDefaultLimit(filter))).length)
   reg(CH.reviewCollect, async (filter?: ReviewFilter) => collectDue(await currentRoot(), await withDefaultLimit(filter)))

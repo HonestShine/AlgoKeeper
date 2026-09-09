@@ -62,9 +62,7 @@ export default function ExportDialog({ noteId, onClose }: ExportDialogProps): Re
             <select className={`mt-1 w-full ${field}`} value={format} onChange={(e) => setFormat(e.target.value as ExportFormat)}>
               <option value="md">Markdown</option>
               <option value="html">HTML</option>
-              <option value="pdf" disabled>
-                PDF（待实现）
-              </option>
+              <option value="pdf">PDF（桌面端）</option>
             </select>
           </label>
           <label className="text-neutral-400">
@@ -77,6 +75,7 @@ export default function ExportDialog({ noteId, onClose }: ExportDialogProps): Re
         </div>
         <p className="mb-3 text-[11px] text-neutral-600">
           {variant === 'share' ? '分享版 frontmatter 不含 scheduling，适合发布。' : '备份版保留 scheduling，可整目录回导无损恢复。'}
+          {format === 'pdf' ? ' PDF 由隐藏窗口打印 HTML 生成，最接近所见。' : ''}
         </p>
         {message && <p className="mb-2 break-all text-xs text-neutral-400">{message}</p>}
         <div className="flex justify-end gap-2">
