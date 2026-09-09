@@ -197,7 +197,7 @@ const GROUPS: MenuGroup[] = [
       {
         key: 'theme',
         label: '界面主题',
-        sub: [item('theme-dark', '深色（默认）'), item('theme-github', 'GitHub 浅色')]
+        sub: [item('theme-dark', '深色'), item('theme-github', 'GitHub 浅色（默认）')]
       }
     ]
   },

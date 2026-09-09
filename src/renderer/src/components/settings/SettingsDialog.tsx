@@ -109,8 +109,8 @@ export default function SettingsDialog({ settings, onClose, onSettingsChanged }:
                   void window.api?.settings.set({ theme }).then((r) => r && onSettingsChanged(r.settings))
                 }}
               >
-                <option value="dark">深色（默认）</option>
-                <option value="light-github">GitHub 浅色</option>
+                <option value="dark">深色</option>
+                <option value="light-github">GitHub 浅色（默认）</option>
               </select>
               <span className="self-center text-[11px] text-neutral-600">即时生效并保存</span>
             </div>

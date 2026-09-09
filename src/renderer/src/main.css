@@ -341,3 +341,17 @@ body {
   background: #d0f0fd;
   border-radius: 3px;
 }
+
+/* ===== 浅色：覆盖高透明度背景（复习覆盖层等仍偏深的原因）===== */
+[data-theme='light-github'] .bg-neutral-950\/90,
+[data-theme='light-github'] .bg-neutral-950\/95 {
+  background-color: rgb(246 248 250 / 0.95);
+}
+[data-theme='light-github'] .bg-neutral-900\/90 {
+  background-color: rgb(246 248 250 / 0.9);
+}
+
+[data-theme='light-github'] option {
+  background: #ffffff;
+  color: #1f2328;
+}
