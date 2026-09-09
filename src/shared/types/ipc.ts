@@ -9,6 +9,12 @@ export interface RendererApi {
   ping(): Promise<string>
   versions: { electron: string; node: string }
 
+  /** 窗口 */
+  window: {
+    /** 新建一个应用窗口（桌面端） */
+    newWindow(): Promise<void>
+  }
+
   /** 设置与目录 */
   settings: {
     /** 读取当前设置；确保默认 <appRoot>/Documents 存在 */
@@ -37,6 +43,8 @@ export interface RendererApi {
     delete(noteId: string): Promise<void>
     /** 在系统文件管理器中显示文件/文件夹 */
     reveal(p: { kind: 'file' | 'folder'; noteId?: string; folder?: string }): Promise<void>
+    /** 导入外部 .md 文件为笔记（原生对话框选文件；取消/网页返回 null） */
+    importNote(): Promise<LoadedNote | null>
   }
 
   /** 间隔重复复习 */

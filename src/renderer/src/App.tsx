@@ -359,6 +359,41 @@ export default function App(): ReactElement {
     }
   }
 
+  const moveNote = async (noteId: string, curSource: string): Promise<void> => {
+    const folder = window.prompt('移动到哪个 source 文件夹（如 leetcode）：', curSource)?.trim()
+    if (!folder) return
+    if (folder === curSource) {
+      setError('目标与当前 source 相同，无需移动')
+      return
+    }
+    try {
+      const note = await api?.notes.get(noteId)
+      if (!note) return
+      await api?.notes.create({ meta: { ...note.meta, source: folder, createdAt: '', updatedAt: '' }, bodyMd: note.bodyMd })
+      await api?.notes.delete(noteId)
+      void loadSummaries()
+      void refreshDue()
+      if (active?.noteId === noteId) await openNote(`${folder}/${note.meta.id}`)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  const runImport = async (): Promise<void> => {
+    try {
+      const note = await api?.notes.importNote()
+      if (!note) {
+        setError('导入需在桌面端选择 .md 文件')
+        return
+      }
+      void loadSummaries()
+      await openNote(note.noteId)
+      void refreshDue()
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
   const pasteTo = async (folder: string): Promise<void> => {
     const c = clip
     if (!c) return
@@ -511,6 +546,19 @@ export default function App(): ReactElement {
         break
       case 'delete-note':
         void doDelete()
+        break
+      case 'new-window':
+        void api?.window.newWindow().catch(() => undefined)
+        break
+      case 'open-recent':
+        setSearchOpen(true)
+        break
+      case 'move-note':
+        if (active) void moveNote(active.noteId, active.noteId.split('/')[0])
+        else setError('请先打开要移动的题解')
+        break
+      case 'import':
+        void runImport()
         break
       case 'close-note':
         if (!active) break

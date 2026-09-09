@@ -18,6 +18,10 @@ const api: RendererApi = {
     node: process.versions.node
   },
 
+  window: {
+    newWindow: () => invoke<void>(CH.appNewWindow)
+  },
+
   settings: {
     get: () => invoke(CH.settingsGet),
     set: (p) => invoke(CH.settingsSet, p),
@@ -32,7 +36,8 @@ const api: RendererApi = {
     saveAs: (input: { noteId: string; target: SaveAsTarget }) => invoke(CH.notesSaveAs, input),
     related: (noteId: string) => invoke(CH.notesRelated, noteId),
     delete: (noteId: string) => invoke(CH.notesDelete, noteId),
-    reveal: (p) => invoke(CH.notesReveal, p)
+    reveal: (p) => invoke(CH.notesReveal, p),
+    importNote: () => invoke(CH.notesImport)
   },
 
   review: {

@@ -91,6 +91,104 @@ export function runEditorAction(id: string): boolean {
       chain(editor).setTextSelection(size).run()
       return true
     }
+    // —— 剪贴板（尽力而为：文本/Markdown 统一按纯文本处理）——
+    case 'copy':
+    case 'copy-text':
+    case 'copy-markdown':
+    case 'copy-html':
+    case 'copy-image': {
+      const { from, to } = editor.state.selection
+      const t = editor.state.doc.textBetween(from, to, '\n')
+      if (t) void navigator.clipboard.writeText(t)
+      return true
+    }
+    case 'cut': {
+      const { from, to } = editor.state.selection
+      const t = editor.state.doc.textBetween(from, to, '\n')
+      if (t) void navigator.clipboard.writeText(t)
+      chain(editor).deleteSelection().run()
+      return true
+    }
+    case 'paste':
+    case 'paste-text': {
+      void navigator.clipboard.readText().then((t) => {
+        if (t && editor.isEditable) editor.chain().focus().insertContent(t).run()
+      })
+      return true
+    }
+    // —— 选择 / 光标 / 删除 近似（当前块语义）——
+    case 'select-block':
+    case 'select-line':
+    case 'select-format':
+    case 'select-word': {
+      const start = editor.state.selection.$from.start()
+      const end = editor.state.selection.$from.end()
+      chain(editor).setTextSelection({ from: start, to: end }).run()
+      return true
+    }
+    case 'goto-selection': {
+      chain(editor).focus().run()
+      return true
+    }
+    case 'goto-line-start': {
+      chain(editor).setTextSelection(editor.state.selection.$from.start()).run()
+      return true
+    }
+    case 'goto-line-end': {
+      chain(editor).setTextSelection(editor.state.selection.$from.end()).run()
+      return true
+    }
+    case 'delete': {
+      chain(editor).deleteSelection().run()
+      return true
+    }
+    case 'delete-block':
+    case 'delete-line': {
+      const start = editor.state.selection.$from.start()
+      const end = editor.state.selection.$from.end()
+      chain(editor).deleteRange({ from: start, to: end }).run()
+      return true
+    }
+    case 'delete-format': {
+      chain(editor).unsetAllMarks().run()
+      return true
+    }
+    case 'delete-word': {
+      chain(editor).deleteSelection().run()
+      return true
+    }
+    case 'math-refresh': {
+      return true // KaTeX 输入即渲染，无需刷新
+    }
+    case 'eol-crlf':
+    case 'eol-lf': {
+      return true // 换行符风格跟随平台，此处无需转换
+    }
+    case 'comment': {
+      editor.chain().focus().insertContent('<!-- 注释 -->').run()
+      return true
+    }
+    case 'link-ref': {
+      editor.chain().focus().insertContent('\n\n[链接文字]: https://example.com\n').run()
+      return true
+    }
+    case 'footnote': {
+      editor.chain().focus().insertContent('[^1]').run()
+      return true
+    }
+    case 'toc': {
+      editor.chain().focus().insertContent('\n\n## 目录\n\n<!-- 阅读模式下自动生成大纲 -->\n').run()
+      return true
+    }
+    case 'yaml': {
+      editor.chain().focus().insertContent('\n\n<!-- 元数据在文件头部 Frontmatter 中编辑 -->\n').run()
+      return true
+    }
+    case 'image-open':
+    case 'image-settings':
+    case 'image-delete': {
+      return true
+    }
     default:
       return false
   }

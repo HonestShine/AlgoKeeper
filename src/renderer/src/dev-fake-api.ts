@@ -179,6 +179,7 @@ export function installFakeApi(): RendererApi {
   const api: RendererApi = {
     ping: async () => 'pong',
     versions: { electron: '(fake)', node: '' },
+    window: { newWindow: async () => undefined },
     settings: {
       get: async () => ({ settings: readSettingsSync() }),
       set: async (p) => {
@@ -264,7 +265,8 @@ export function installFakeApi(): RendererApi {
       },
       reveal: async () => {
         /* 网页环境无法显示文件管理器 */
-      }
+      },
+      importNote: async () => null
     },
     review: {
       dueCount: async (filter?: ReviewFilter) => collectCards(filter).length,

@@ -1,8 +1,10 @@
 import { dialog, ipcMain, shell } from 'electron'
-import { join } from 'node:path'
+import { promises as fs } from 'node:fs'
+import { basename, join } from 'node:path'
 import { CH } from '../../shared/ipc/channels'
 import { parseProblemUrl } from '../../shared/utils/url'
 import { getSettings, updateSettings } from '../services/settings-store'
+import { parseFrontmatter } from '../services/markdown-parser'
 import { createNote, deleteNote, listNotes, noteFilePath, readNote, saveAsNote, saveNote } from '../services/note-store'
 import { collectDue, commitReviews } from '../services/srs-store'
 import { indexNote, recordReviewLogs } from '../services/indexer'
@@ -90,6 +92,32 @@ export function registerIpc(): void {
     const root = await currentRoot()
     if (p.kind === 'file' && p.noteId) shell.showItemInFolder(noteFilePath(root, p.noteId))
     else if (p.kind === 'folder' && p.folder) await shell.openPath(join(root, p.folder))
+  })
+  reg(CH.notesImport, async () => {
+    const root = await currentRoot()
+    const res = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'Markdown', extensions: ['md'] }]
+    })
+    if (res.canceled || !res.filePaths[0]) return null
+    const raw = await fs.readFile(res.filePaths[0], 'utf8')
+    const parsed = parseFrontmatter(raw)
+    const base = basename(res.filePaths[0], '.md')
+    const source = parsed.meta.source?.trim() || 'imported'
+    const id = (parsed.meta.id?.trim() || base).replace(/[^A-Za-z0-9._-]/g, '-') || `import-${Date.now()}`
+    const note = await createNote(root, {
+      meta: {
+        ...parsed.meta,
+        source,
+        id,
+        title: parsed.meta.title?.trim() || base,
+        createdAt: '',
+        updatedAt: ''
+      },
+      bodyMd: parsed.bodyMd
+    })
+    await indexNote(root, note.noteId)
+    return note
   })
   reg(CH.exportRun, async (req: ExportRequest) => {
     const root = await currentRoot()

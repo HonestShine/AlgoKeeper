@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, Menu } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, Menu } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'node:path'
 import { CH } from '../shared/ipc/channels'
@@ -119,6 +119,7 @@ function loadRendererUrl(win: BrowserWindow, url: string): void {
 app.whenReady().then(() => {
   registerIpc()
   installMenu()
+  ipcMain.handle(CH.appNewWindow, () => createWindow())
   createWindow()
 
   // 启动时把笔记目录全量同步进 SQLite 索引（失败不阻塞窗口，仅记录）

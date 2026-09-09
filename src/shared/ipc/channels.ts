@@ -1,6 +1,7 @@
 /** IPC 通道常量：main 注册与 preload 调用共用，防字符串漂移。 */
 export const CH = {
   ping: 'app:ping',
+  appNewWindow: 'app:new-window',
   settingsGet: 'meta:settings:get',
   settingsSet: 'meta:settings:set',
   settingsPick: 'meta:settings:pick',
@@ -11,6 +12,7 @@ export const CH = {
   notesSaveAs: 'notes:save-as',
   notesDelete: 'notes:delete',
   notesReveal: 'notes:reveal',
+  notesImport: 'notes:import',
   parseUrl: 'parse:url',
   reviewDueCount: 'review:due-count',
   reviewCollect: 'review:collect',

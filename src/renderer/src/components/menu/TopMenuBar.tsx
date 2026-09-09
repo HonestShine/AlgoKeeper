@@ -206,7 +206,6 @@ const GROUPS: MenuGroup[] = [
 
 function isDisabled(prop: TopMenuBarProps, it: MItem): boolean {
   if (it.sep) return false
-  if (it.todo) return true
   if (it.needsEditor && !prop.canEdit) return true
   if (prop.disabledKeys?.includes(it.key)) return true
   return false
@@ -296,7 +295,6 @@ export default function TopMenuBar(p: TopMenuBarProps): ReactElement {
                     key={it.key}
                     type="button"
                     disabled={isDisabled(p, it)}
-                    title={it.todo ? '待实现' : undefined}
                     onClick={() => run(it)}
                     className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-[13px] ${
                       it.todo ? 'text-neutral-600' : 'text-neutral-200 hover:bg-neutral-800'
