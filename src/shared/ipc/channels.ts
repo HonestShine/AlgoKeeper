@@ -8,7 +8,13 @@ export const CH = {
   notesGet: 'notes:get',
   notesCreate: 'notes:create',
   notesSave: 'notes:save',
-  parseUrl: 'parse:url'
+  notesSaveAs: 'notes:save-as',
+  parseUrl: 'parse:url',
+  reviewDueCount: 'review:due-count',
+  reviewCollect: 'review:collect',
+  reviewCommit: 'review:commit',
+  /** main → renderer：原生菜单动作 */
+  menuAction: 'menu:action'
 } as const
 
 export type Channel = (typeof CH)[keyof typeof CH]

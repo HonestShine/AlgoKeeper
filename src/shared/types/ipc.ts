@@ -29,11 +29,28 @@ export interface RendererApi {
     create(draft: NewNoteDraft): Promise<LoadedNote>
     /** 保存（合并原文件的未知键如 scheduling，见 note-store） */
     save(input: SaveNoteInput): Promise<{ noteId: string; updatedAt: string }>
+    /** 另存为：复制到新 source/id（重置调度），冲突抛错 */
+    saveAs(input: { noteId: string; target: SaveAsTarget }): Promise<LoadedNote>
+  }
+
+  /** 间隔重复复习 */
+  review: {
+    /** 今日到期 + 新卡总数 */
+    dueCount(): Promise<number>
+    /** 拉取今日复习队列 */
+    collect(): Promise<CardSessionItem[]>
+    /** 提交评分并写回 frontmatter；返回写入笔记数 */
+    commit(results: ReviewResult[]): Promise<number>
   }
 
   /** 从题目 URL 解析 source/id/title */
   parseUrl(raw: string): Promise<ParsedProblemUrl | null>
+
+  /** 订阅桌面端原生菜单动作；返回退订函数 */
+  onMenuAction(cb: (action: MenuAction) => void): () => void
 }
+
+export type MenuAction = 'new-note' | 'save' | 'save-as' | 'toggle-mode' | 'change-root' | 'review-start'
 
 export interface SettingsPayload {
   settings: Settings
@@ -45,5 +62,8 @@ type NoteSummary = import('./note').NoteSummary
 type LoadedNote = import('./note').LoadedNote
 type NewNoteDraft = import('./note').NewNoteDraft
 type SaveNoteInput = import('./note').SaveNoteInput
+type SaveAsTarget = import('./note').SaveAsTarget
+type CardSessionItem = import('./srs').CardSessionItem
+type ReviewResult = import('./srs').ReviewResult
 
 export type { Difficulty }

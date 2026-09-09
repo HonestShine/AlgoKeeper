@@ -681,18 +681,22 @@ WYSIWYG + 对 ProseMirror 生态直接可控；社区/官方扩展覆盖代码�
 // components/layout/
 export function AppLayout() {
   return (
-    <div className="grid h-screen grid-cols-[220px_1fr_auto]">
+    <div className="flex h-screen flex-col">
+      <TopMenuBar />          {/* 应用菜单栏：文件/编辑/视图/复习/帮助；桌面端与 Electron Menu 同源 */}
+      <div className="grid min-h-0 flex-1 grid-cols-[220px_1fr_auto]">
       <SidebarLeft />            {/* 文件树 + 标签云 */}
       <main className="flex min-w-0 flex-col">
         <TopBar />               {/* 模式切换、队列数、同步状态 */}
         <EditorArea />           {/* EditSurface / ReadOnlyView 二选一 */}
         <StatusBar />            {/* 字数·光标·队列进度 */}
       </main>
-      <InspectorPanel />         {/* 可折叠，Ctrl+Shift+B */}
+        <InspectorPanel />         {/* 可折叠，Ctrl+Shift+B */}
+      </div>
     </div>
   );
 }
 // hooks/useKeyboard.ts 在 App 顶层挂一次全局监听（§9）
+// 原生菜单（Electron Menu）→ 渲染层动作桥接：menu:action 事件与 TopMenuBar 同一 action 表
 ```
 
 ### 8.2 关键组件与职责

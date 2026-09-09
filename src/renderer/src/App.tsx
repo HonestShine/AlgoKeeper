@@ -4,6 +4,9 @@ import type { AppSettings } from '../../shared/types/settings'
 import type { Difficulty, FileMeta, LoadedNote, NoteStatus, NoteSummary } from '../../shared/types/note'
 import EditorSurface from './components/editor/EditorSurface'
 import QuickCaptureDialog from './components/capture/QuickCaptureDialog'
+import SaveAsDialog from './components/capture/SaveAsDialog'
+import ReviewSession from './components/review/ReviewSession'
+import TopMenuBar from './components/menu/TopMenuBar'
 
 const DIFFICULTIES: Difficulty[] = ['Easy', 'Medium', 'Hard']
 const STATUSES: NoteStatus[] = ['active', 'to-review', 'mastered', 'need-depth']
@@ -35,6 +38,9 @@ export default function App(): ReactElement {
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState('')
   const [captureOpen, setCaptureOpen] = useState(false)
+  const [saveAsOpen, setSaveAsOpen] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [dueCount, setDueCount] = useState(0)
   const [error, setError] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [tagDraft, setTagDraft] = useState('')
@@ -112,6 +118,61 @@ export default function App(): ReactElement {
     setMode((m) => (m === 'edit' ? 'read' : 'edit'))
   }, [])
 
+  const refreshDue = useCallback(async (): Promise<void> => {
+    if (!api) return
+    try {
+      setDueCount(await api.review.dueCount())
+    } catch {
+      /* 忽略计数失败 */
+    }
+  }, [api])
+
+  useEffect(() => {
+    if (api) void refreshDue()
+  }, [api, refreshDue])
+
+  const startReview = useCallback((): void => {
+    setReviewOpen(true)
+  }, [])
+
+  const openSaveAs = useCallback((): void => {
+    if (!active) {
+      setError('请先打开一篇题解再另存为')
+      return
+    }
+    setSaveAsOpen(true)
+  }, [active])
+
+  const pickNewRoot = useCallback((): void => {
+    void api?.settings.pickRoot().then((r) => r && setSettings(r.settings))
+  }, [api])
+
+  // 桌面端原生菜单 → 同一动作表
+  useEffect(() => {
+    return api?.onMenuAction?.((action) => {
+      switch (action) {
+        case 'new-note':
+          setCaptureOpen(true)
+          break
+        case 'save':
+          void save()
+          break
+        case 'save-as':
+          openSaveAs()
+          break
+        case 'toggle-mode':
+          toggleMode()
+          break
+        case 'change-root':
+          pickNewRoot()
+          break
+        case 'review-start':
+          startReview()
+          break
+      }
+    })
+  }, [api, save, openSaveAs, toggleMode, pickNewRoot, startReview])
+
   // 全局快捷键（捕获阶段）
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -120,6 +181,9 @@ export default function App(): ReactElement {
       if (e.shiftKey && (e.key === 'N' || e.key === 'n')) {
         e.preventDefault()
         setCaptureOpen(true)
+      } else if (e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+        e.preventDefault()
+        startReview()
       } else if (e.key === 's' || e.key === 'S') {
         e.preventDefault()
         void save()
@@ -130,14 +194,17 @@ export default function App(): ReactElement {
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [save, toggleMode])
+  }, [save, toggleMode, startReview])
 
   const onCreated = useCallback(
     (note: LoadedNote): void => {
       setCaptureOpen(false)
-      void loadSummaries().then(() => openNote(note.noteId))
+      void loadSummaries().then(() => {
+        void openNote(note.noteId)
+        void refreshDue()
+      })
     },
-    [loadSummaries, openNote]
+    [loadSummaries, openNote, refreshDue]
   )
 
   const toggleTag = (t: string): void => {
@@ -190,6 +257,18 @@ export default function App(): ReactElement {
           </button>
         </div>
       )}
+      <TopMenuBar
+        dueCount={dueCount}
+        dirty={dirty}
+        saving={saving}
+        mode={mode}
+        onNew={() => setCaptureOpen(true)}
+        onSave={() => void save()}
+        onSaveAs={openSaveAs}
+        onToggleMode={toggleMode}
+        onChangeRoot={pickNewRoot}
+        onReview={startReview}
+      />
       <div className="flex min-h-0 flex-1">
         {/* 左栏 */}
         <aside className="flex w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/60">
@@ -238,7 +317,7 @@ export default function App(): ReactElement {
             <button
               type="button"
               className="w-full rounded border border-neutral-700 px-2 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
-              onClick={() => void api.settings.pickRoot().then((r) => r && setSettings(r.settings))}
+              onClick={pickNewRoot}
             >
               更换笔记目录…
             </button>
@@ -401,6 +480,28 @@ export default function App(): ReactElement {
       </footer>
 
       {captureOpen && <QuickCaptureDialog onClose={() => setCaptureOpen(false)} onCreated={onCreated} />}
+      {saveAsOpen && active && (
+        <SaveAsDialog
+          meta={active.meta}
+          onClose={() => setSaveAsOpen(false)}
+          onSaved={(note) => {
+            setSaveAsOpen(false)
+            void loadSummaries().then(() => {
+              void openNote(note.noteId)
+              void refreshDue()
+            })
+          }}
+        />
+      )}
+      {reviewOpen && (
+        <ReviewSession
+          onExit={() => {
+            setReviewOpen(false)
+            void refreshDue()
+            void loadSummaries()
+          }}
+        />
+      )}
     </div>
   )
 }

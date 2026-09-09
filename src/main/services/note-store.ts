@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { parseFrontmatter, buildNoteMd } from './markdown-parser'
-import type { FileMeta, LoadedNote, NewNoteDraft, NoteSummary, SaveNoteInput } from '../../shared/types/note'
+import type { FileMeta, LoadedNote, NewNoteDraft, NoteSummary, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
 
 const DEFAULT_STATUS: FileMeta['status'] = 'active'
 
@@ -23,6 +23,12 @@ export function assertSafeNoteId(noteId: string): void {
 
 function notePath(root: string, noteId: string): string {
   return join(root, ...noteId.split('/')) + '.md'
+}
+
+/** 供其它服务（srs-store 等）按 noteId 取绝对路径；含安全校验。 */
+export function noteFilePath(root: string, noteId: string): string {
+  assertSafeNoteId(noteId)
+  return notePath(root, noteId)
 }
 
 function relToNoteId(abs: string, root: string): string {
@@ -158,4 +164,35 @@ export async function atomicWrite(file: string, content: string): Promise<void> 
   const tmp = join(dir, `.${basename(file)}.${process.pid}.ak.tmp`)
   await fs.writeFile(tmp, content, 'utf8')
   await fs.rename(tmp, file)
+}
+
+/** 另存为：把已有笔记复制到新的 source/id（重置调度，保留正文与作者字段） */
+export async function saveAsNote(root: string, srcNoteId: string, target: SaveAsTarget): Promise<LoadedNote> {
+  const existing = await readNote(root, srcNoteId)
+  const source = target.source || 'notes'
+  const id = target.id || `copy-${Date.now()}`
+  const noteId = `${source}/${id}`
+  assertSafeNoteId(noteId)
+
+  const file = notePath(root, noteId)
+  const folder = dirname(file)
+  await fs.mkdir(folder, { recursive: true })
+  try {
+    await fs.access(file)
+    throw codeError(`目标已存在: ${noteId}`, 'notes.exist')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
+
+  const meta: FileMeta = {
+    ...existing.meta,
+    source,
+    id,
+    title: target.title?.trim() ? target.title.trim() : existing.meta.title,
+    createdAt: isoNow(),
+    updatedAt: isoNow()
+  }
+  // 新副本不带调度（scheduling 未知键不复制），从零开始复习
+  await atomicWrite(file, buildNoteMd(meta, existing.bodyMd))
+  return { noteId, filePath: file, meta, bodyMd: existing.bodyMd, warnings: [] }
 }

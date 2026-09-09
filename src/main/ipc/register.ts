@@ -2,8 +2,10 @@ import { dialog, ipcMain } from 'electron'
 import { CH } from '../../shared/ipc/channels'
 import { parseProblemUrl } from '../../shared/utils/url'
 import { getSettings, setNotesRoot } from '../services/settings-store'
-import { createNote, listNotes, readNote, saveNote } from '../services/note-store'
-import type { NewNoteDraft, SaveNoteInput } from '../../shared/types/note'
+import { createNote, listNotes, readNote, saveAsNote, saveNote } from '../services/note-store'
+import { collectDue, commitReviews } from '../services/srs-store'
+import type { NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
+import type { ReviewResult } from '../../shared/types/srs'
 
 /** 统一把领域错误格式化为可经 IPC 透传的 Error（`[code] message`）。 */
 function toIpcError(err: unknown): Error {
@@ -46,5 +48,11 @@ export function registerIpc(): void {
   reg(CH.notesGet, async (noteId: string) => readNote(await currentRoot(), noteId))
   reg(CH.notesCreate, async (draft: NewNoteDraft) => createNote(await currentRoot(), draft))
   reg(CH.notesSave, async (input: SaveNoteInput) => saveNote(await currentRoot(), input))
+  reg(CH.notesSaveAs, async (input: { noteId: string; target: SaveAsTarget }) =>
+    saveAsNote(await currentRoot(), input.noteId, input.target)
+  )
+  reg(CH.reviewDueCount, async () => (await collectDue(await currentRoot())).length)
+  reg(CH.reviewCollect, async () => collectDue(await currentRoot()))
+  reg(CH.reviewCommit, async (results: ReviewResult[]) => commitReviews(await currentRoot(), results))
   reg(CH.parseUrl, async (raw: string) => parseProblemUrl(raw))
 }

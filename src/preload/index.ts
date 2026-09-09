@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { IpcRendererEvent } from 'electron'
 import { CH } from '../shared/ipc/channels'
-import type { RendererApi } from '../shared/types/ipc'
-import type { NewNoteDraft, SaveNoteInput } from '../shared/types/note'
+import type { MenuAction, RendererApi } from '../shared/types/ipc'
+import type { NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../shared/types/note'
+import type { ReviewResult } from '../shared/types/srs'
 
 function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
   return ipcRenderer.invoke(channel, ...args) as Promise<T>
@@ -24,10 +26,23 @@ const api: RendererApi = {
     list: () => invoke(CH.notesList),
     get: (noteId) => invoke(CH.notesGet, noteId),
     create: (draft: NewNoteDraft) => invoke(CH.notesCreate, draft),
-    save: (input: SaveNoteInput) => invoke(CH.notesSave, input)
+    save: (input: SaveNoteInput) => invoke(CH.notesSave, input),
+    saveAs: (input: { noteId: string; target: SaveAsTarget }) => invoke(CH.notesSaveAs, input)
   },
 
-  parseUrl: (raw) => invoke(CH.parseUrl, raw)
+  review: {
+    dueCount: () => invoke(CH.reviewDueCount),
+    collect: () => invoke(CH.reviewCollect),
+    commit: (results: ReviewResult[]) => invoke(CH.reviewCommit, results)
+  },
+
+  parseUrl: (raw) => invoke(CH.parseUrl, raw),
+
+  onMenuAction: (cb) => {
+    const listener = (_e: IpcRendererEvent, action: MenuAction): void => cb(action)
+    ipcRenderer.on(CH.menuAction, listener)
+    return () => ipcRenderer.removeListener(CH.menuAction, listener)
+  }
 }
 
 contextBridge.exposeInMainWorld('api', api)

@@ -60,3 +60,10 @@ export interface NewNoteDraft {
   meta: FileMeta
   bodyMd: string
 }
+
+/** 另存为目标（source/id/可选新标题） */
+export interface SaveAsTarget {
+  source: string
+  id: string
+  title?: string
+}

@@ -1,8 +1,57 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, Menu } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'node:path'
+import { CH } from '../shared/ipc/channels'
+import type { MenuAction } from '../shared/types/ipc'
 import { registerIpc } from './ipc/register'
 
 const rendererUrl = process.env['ELECTRON_RENDERER_URL']
+
+function sendMenuAction(action: MenuAction): void {
+  const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+  win?.webContents.send(CH.menuAction, action)
+}
+
+/** 应用原生菜单：与渲染层 TopMenuBar 同源动作，桥接为 menu:action 事件 */
+function installMenu(): void {
+  const template: MenuItemConstructorOptions[] = [
+    {
+      label: '文件',
+      submenu: [
+        { label: '快速记录…', accelerator: 'CmdOrCtrl+Shift+N', click: () => sendMenuAction('new-note') },
+        { label: '保存', accelerator: 'CmdOrCtrl+S', click: () => sendMenuAction('save') },
+        { label: '另存为…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenuAction('save-as') },
+        { type: 'separator' },
+        { label: '更换笔记目录…', click: () => sendMenuAction('change-root') },
+        { type: 'separator' },
+        { role: 'quit', label: '退出' }
+      ]
+    },
+    {
+      label: '编辑',
+      submenu: [
+        { role: 'undo', label: '撤销' },
+        { role: 'redo', label: '重做' },
+        { type: 'separator' },
+        { role: 'cut', label: '剪切' },
+        { role: 'copy', label: '复制' },
+        { role: 'paste', label: '粘贴' },
+        { role: 'selectAll', label: '全选' }
+      ]
+    },
+    {
+      label: '视图',
+      submenu: [
+        { label: '阅读/编辑切换', accelerator: 'CmdOrCtrl+E', click: () => sendMenuAction('toggle-mode') },
+        { label: '今日复习…', accelerator: 'CmdOrCtrl+Shift+R', click: () => sendMenuAction('review-start') },
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: '全屏' }
+      ]
+    },
+    { role: 'windowMenu', label: '窗口' }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -60,6 +109,7 @@ function loadRendererUrl(win: BrowserWindow, url: string): void {
 
 app.whenReady().then(() => {
   registerIpc()
+  installMenu()
   createWindow()
 
   app.on('activate', () => {

@@ -2,10 +2,14 @@
  * 仅供开发期网页测试（Playwright/无 preload）的内存假后端。
  * 持久化到 localStorage（键 alk:notes）。生产打包经 import.meta.env.DEV 剔除。
  */
-import type { RendererApi } from '../../shared/types/ipc'
-import type { FileMeta, LoadedNote, NewNoteDraft, SaveNoteInput } from '../../shared/types/note'
+import type { MenuAction, RendererApi } from '../../shared/types/ipc'
+import type { FileMeta, LoadedNote, NewNoteDraft, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
 import type { AppSettings } from '../../shared/types/settings'
+import type { CardSessionItem, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
 import { parseProblemUrl } from '../../shared/utils/url'
+import { todayKey } from '../../shared/utils/date'
+import { newCardScheduling, schedule } from '../../shared/utils/sm2'
+import { parseBodyCards } from '../../shared/utils/cards'
 
 const LS_KEY = 'alk:notes'
 const SETTINGS_KEY = 'alk:settings'
@@ -74,6 +78,57 @@ export function installFakeApi(): RendererApi {
     filePath: `<virtual>/${n.noteId}.md`
   })
 
+  type SchedStore = Record<string, { main?: SchedulingInfo; cards?: Record<string, SchedulingInfo> }>
+  const SCHED_KEY = 'alk:sched'
+  const readSched = (): SchedStore => {
+    try {
+      return JSON.parse(localStorage.getItem(SCHED_KEY) ?? '{}') as SchedStore
+    } catch {
+      return {}
+    }
+  }
+  const writeSched = (s: SchedStore): void => {
+    localStorage.setItem(SCHED_KEY, JSON.stringify(s))
+  }
+  const collectCards = (): CardSessionItem[] => {
+    const today = todayKey()
+    const sched = readSched()
+    const out: CardSessionItem[] = []
+    for (const n of notes) {
+      const ns = sched[n.noteId] ?? {}
+      const main = ns.main ?? newCardScheduling(today)
+      if (main.due <= today) {
+        out.push({
+          cardId: `${n.noteId}::main`,
+          noteId: n.noteId,
+          noteTitle: n.meta.title,
+          kind: 'whole',
+          question: `回顾 “${n.meta.title}” 的完整解法`,
+          answerText: n.bodyMd,
+          due: main.due,
+          isNew: ns.main === undefined
+        })
+      }
+      const cards = ns.cards ?? {}
+      for (const line of parseBodyCards(n.bodyMd)) {
+        const c = cards[line.qhash] ?? newCardScheduling(today)
+        if (c.due <= today) {
+          out.push({
+            cardId: `${n.noteId}::${line.qhash}`,
+            noteId: n.noteId,
+            noteTitle: n.meta.title,
+            kind: 'split',
+            question: line.question,
+            answerText: line.answer,
+            due: c.due,
+            isNew: cards[line.qhash] === undefined
+          })
+        }
+      }
+    }
+    return out
+  }
+
   const api: RendererApi = {
     ping: async () => 'pong',
     versions: { electron: '(fake)', node: '' },
@@ -117,9 +172,54 @@ export function installFakeApi(): RendererApi {
         notes = next
         persist(notes)
         return { noteId: input.noteId, updatedAt: meta.updatedAt }
+      },
+      saveAs: async (input: { noteId: string; target: SaveAsTarget }) => {
+        const src = read(input.noteId)
+        const source = input.target.source || 'notes'
+        const noteId = `${source}/${input.target.id}`
+        if (notes.some((n) => n.noteId === noteId)) {
+          throw Object.assign(new Error(`目标已存在: ${noteId}`), { code: 'notes.exist' })
+        }
+        const meta: FileMeta = {
+          ...src.meta,
+          source,
+          id: input.target.id,
+          title: input.target.title?.trim() ? input.target.title.trim() : src.meta.title,
+          createdAt: isoNow(),
+          updatedAt: isoNow()
+        }
+        notes = [...notes, { noteId, meta, bodyMd: src.bodyMd }]
+        persist(notes)
+        return { noteId, filePath: `<virtual>/${noteId}.md`, meta, bodyMd: src.bodyMd, warnings: [] }
       }
     },
-    parseUrl: async (raw) => parseProblemUrl(raw)
+    review: {
+      dueCount: async () => collectCards().length,
+      collect: async () => collectCards(),
+      commit: async (results: ReviewResult[]) => {
+        const today = todayKey()
+        const sched = readSched()
+        for (const r of results) {
+          const idx = r.cardId.lastIndexOf('::')
+          if (idx <= 0) continue
+          const noteId = r.cardId.slice(0, idx)
+          const key = r.cardId.slice(idx + 2)
+          const ns = sched[noteId] ?? {}
+          const cur = key === 'main' ? (ns.main ?? newCardScheduling(today)) : (ns.cards ?? {})[key] ?? newCardScheduling(today)
+          const upd = schedule(r.grade, cur, today)
+          if (key === 'main') ns.main = upd
+          else {
+            ns.cards = ns.cards ?? {}
+            ns.cards[key] = upd
+          }
+          sched[noteId] = ns
+        }
+        writeSched(sched)
+        return results.length
+      }
+    },
+    parseUrl: async (raw) => parseProblemUrl(raw),
+    onMenuAction: (_cb: (action: MenuAction) => void) => () => undefined
   }
   return api
 }
