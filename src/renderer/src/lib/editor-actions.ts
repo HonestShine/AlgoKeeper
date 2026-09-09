@@ -1,8 +1,23 @@
 import type { Editor } from '@tiptap/react'
+import { DOMSerializer } from '@tiptap/pm/model'
 import { getActiveEditor } from './editor-bridge'
 
 function chain(editor: Editor) {
   return editor.chain().focus()
+}
+
+function plainSelection(editor: Editor): string {
+  const { from, to } = editor.state.selection
+  return editor.state.doc.textBetween(from, to, '\n')
+}
+
+function htmlSelection(editor: Editor): string {
+  const { from, to } = editor.state.selection
+  const slice = editor.state.doc.slice(from, to).content
+  const div = document.createElement('div')
+  const serializer = DOMSerializer.fromSchema(editor.schema)
+  div.appendChild(serializer.serializeFragment(slice))
+  return div.innerHTML
 }
 
 /** 编辑命令：能执行的返回 true，不能（无编辑器/只读/未实现）返回 false。 */
@@ -91,14 +106,30 @@ export function runEditorAction(id: string): boolean {
       chain(editor).setTextSelection(size).run()
       return true
     }
-    // —— 剪贴板（尽力而为：文本/Markdown 统一按纯文本处理）——
-    case 'copy':
+    // —— 剪贴板（富文本 / HTML / 纯文本 分格式）——
+    case 'copy': {
+      // 富文本（系统剪贴板 HTML+文本）→ 粘贴到别处保留格式
+      const plain = plainSelection(editor)
+      const html = htmlSelection(editor)
+      void navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })]).catch(() => {
+        if (plain) void navigator.clipboard.writeText(plain)
+      })
+      return true
+    }
+    case 'copy-html': {
+      const plain = plainSelection(editor)
+      const html = htmlSelection(editor)
+      void navigator.clipboard
+        .write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })])
+        .catch(() => {
+          if (plain) void navigator.clipboard.writeText(plain)
+        })
+      return true
+    }
     case 'copy-text':
     case 'copy-markdown':
-    case 'copy-html':
     case 'copy-image': {
-      const { from, to } = editor.state.selection
-      const t = editor.state.doc.textBetween(from, to, '\n')
+      const t = plainSelection(editor)
       if (t) void navigator.clipboard.writeText(t)
       return true
     }
@@ -173,7 +204,14 @@ export function runEditorAction(id: string): boolean {
       return true
     }
     case 'footnote': {
-      editor.chain().focus().insertContent('[^1]').run()
+      const text = editor.state.doc.textContent
+      let max = 0
+      const re = /\[\^(\d+)\]/g
+      let m: RegExpExecArray | null
+      while ((m = re.exec(text)) !== null) max = Math.max(max, Number(m[1]))
+      const n = max + 1
+      editor.chain().focus().insertContent(`[^${n}]`).run()
+      editor.chain().insertContentAt(editor.state.doc.content.size, `\n\n[^${n}]: 脚注内容\n`).run()
       return true
     }
     case 'toc': {
