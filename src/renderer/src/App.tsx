@@ -12,6 +12,7 @@ import SearchPalette from './components/search/SearchPalette'
 import Dashboard from './components/dashboard/Dashboard'
 import ExportDialog from './components/export/ExportDialog'
 import FindReplaceDialog from './components/find/FindReplaceDialog'
+import OutlineDialog from './components/find/OutlineDialog'
 import { parseToc } from '../../shared/utils/toc'
 import type { ExportFormat, RelatedNotes } from '../../shared/types/export'
 import { runEditorAction } from './lib/editor-actions'
@@ -57,6 +58,7 @@ export default function App(): ReactElement {
   const [showStatus, setShowStatus] = useState(true)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('md')
   const [findOpen, setFindOpen] = useState(false)
+  const [outlineOpen, setOutlineOpen] = useState(false)
   const [sourceOpen, setSourceOpen] = useState(false)
   const [dueCount, setDueCount] = useState(0)
   const [error, setError] = useState('')
@@ -590,6 +592,10 @@ export default function App(): ReactElement {
       case 'theme-github':
         saveTheme('light-github')
         break
+      case 'open-outline':
+        if (active) setOutlineOpen(true)
+        else setError('请先打开一篇题解')
+        break
       case 'source-mode':
         if (active && mode !== 'edit') setMode('edit')
         setSourceOpen((v) => !v)
@@ -954,6 +960,7 @@ export default function App(): ReactElement {
         />
       )}
       {findOpen && <FindReplaceDialog onClose={() => setFindOpen(false)} />}
+      {outlineOpen && active && <OutlineDialog md={active.md} onClose={() => setOutlineOpen(false)} />}
       {searchOpen && (
         <SearchPalette
           onPick={(noteId) => {

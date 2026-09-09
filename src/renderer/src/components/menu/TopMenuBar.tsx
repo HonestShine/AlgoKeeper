@@ -179,7 +179,7 @@ const GROUPS: MenuGroup[] = [
     label: '视图',
     items: [
       item('toggle-filebar', '显示/隐藏文件管理栏'),
-      t('outline', '大纲'),
+      item('open-outline', '大纲'),
       item('docs-list', '文档列表'),
       item('toggle-filetree', '文件树'),
       item('open-search', '搜索', { shortcut: 'Ctrl+K' }),

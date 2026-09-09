@@ -96,6 +96,26 @@ export default function SettingsDialog({ settings, onClose, onSettingsChanged }:
             <p className="mt-1 text-[11px] text-neutral-600">默认：{settings.notesRootDefault}（笔记为 .md 文件，图片在各自目录 .images/）</p>
           </section>
 
+          {/* 外观 */}
+          <section>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-neutral-500">外观</p>
+            <p className={label}>界面主题</p>
+            <div className="flex gap-2">
+              <select
+                className={`${field} w-44`}
+                value={settings.theme}
+                onChange={(e) => {
+                  const theme = e.target.value === 'light-github' ? 'light-github' : 'dark'
+                  void window.api?.settings.set({ theme }).then((r) => r && onSettingsChanged(r.settings))
+                }}
+              >
+                <option value="dark">深色（默认）</option>
+                <option value="light-github">GitHub 浅色</option>
+              </select>
+              <span className="self-center text-[11px] text-neutral-600">即时生效并保存</span>
+            </div>
+          </section>
+
           {/* 复习 */}
           <section>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-neutral-500">复习</p>
