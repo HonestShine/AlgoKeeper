@@ -336,3 +336,8 @@ body {
   cursor: pointer;
   margin: 0 0.1em;
 }
+
+.ak-editor sup.ak-footnote:hover {
+  background: #d0f0fd;
+  border-radius: 3px;
+}

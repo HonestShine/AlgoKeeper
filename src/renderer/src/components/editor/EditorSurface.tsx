@@ -138,6 +138,17 @@ export default function EditorSurface({ md, editable, onDocChange, onOpenContext
         const m = /^\[!(\w+)\]/.exec((e.textContent ?? '').trimStart())
         if (m) e.classList.add('ak-callout', `ak-callout-${m[1].toLowerCase()}`)
       })
+      // 脚注：把定义正文挂到引用的 title（悬停预览）
+      const defs = new Map<string, string>()
+      container.querySelectorAll('p').forEach((p) => {
+        const dm = /^\[\^(\d+)\]:\s*(.*)/.exec((p.textContent ?? '').trim())
+        if (dm) defs.set(dm[1], dm[2])
+      })
+      container.querySelectorAll('sup.ak-footnote').forEach((s) => {
+        const n = s.getAttribute('data-fn') ?? ''
+        const body = defs.get(n)
+        if (body) s.setAttribute('title', body)
+      })
     }
     decorate()
     let observer: MutationObserver | null = null
@@ -157,6 +168,36 @@ export default function EditorSurface({ md, editable, onDocChange, onOpenContext
       globalThis.clearInterval(boot)
       observer?.disconnect()
     }
+  }, [editor])
+
+  // 脚注：引用↔定义点击跳转
+  useEffect(() => {
+    if (!editor) return
+    const dom = editor.view?.dom as HTMLElement | undefined
+    if (!dom) return
+    const onClick = (ev: MouseEvent): void => {
+      const t = ev.target as HTMLElement | null
+      if (!t) return
+      const sup = t.closest('sup.ak-footnote')
+      if (sup) {
+        const n = sup.getAttribute('data-fn')
+        const def = n
+          ? Array.from(dom.querySelectorAll('p')).find((p) => new RegExp(`^\\[\\^${n}\\]\\:`).test((p.textContent ?? '').trim()))
+          : undefined
+        if (def) def.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        return
+      }
+      const p = t.closest('p')
+      if (p) {
+        const m = /^\[\^(\d+)\]:/.exec((p.textContent ?? '').trim())
+        if (m) {
+          const ref = Array.from(dom.querySelectorAll('sup.ak-footnote')).find((s) => s.getAttribute('data-fn') === m[1])
+          ref?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }
+    }
+    dom.addEventListener('click', onClick)
+    return () => dom.removeEventListener('click', onClick)
   }, [editor])
 
   const btn = useCallback(
