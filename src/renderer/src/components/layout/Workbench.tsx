@@ -151,6 +151,9 @@ export default function Workbench(p: WorkbenchProps): ReactElement {
       onPointerMove={onDrag(side)}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      // 兜底：捕获在无 pointercancel 的情况下丢失时也要收尾，否则 dragRef 永久非空
+      // （data-resizing 残留 + fix() 被永久短路）。endDrag 幂等，可安全重复调用。
+      onLostPointerCapture={endDrag}
       onKeyDown={onKey(side)}
       onDoubleClick={onDoubleClick(side)}
       className="group relative w-px shrink-0 cursor-col-resize bg-neutral-800 before:absolute before:inset-y-0 before:-left-1 before:w-3 before:content-[''] hover:bg-sky-600 focus:bg-sky-600 focus:outline-none"

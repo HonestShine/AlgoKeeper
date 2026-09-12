@@ -24,21 +24,33 @@ export function useLayoutPrefs(
   const pending = Object.keys(draft).length > 0
 
   useEffect(() => {
-    if (!pending || !api) return
-    const snapshot = { ...base, ...draft }
+    // settings 尚未到位（settings.get() 未返回）时不写盘：否则会以 DEFAULT_LAYOUT 为基底
+    // 覆盖掉已持久化的宽度（首帧就改布局 + 响应晚于 300ms 即可触发）
+    if (!settings || !pending || !api) return
+    // 本次实际提交的字段（Partial）：只发变更字段，避免把整份 layout 里的过期字段写回，
+    // 多窗口共用 settings.json 时互相覆盖
+    const sent: Partial<LayoutPrefs> = { ...draft }
     const timer = window.setTimeout(() => {
       void api.settings
-        .set({ layout: snapshot })
+        .set({ layout: sent })
         .then((r) => {
-          if (r) {
-            onChanged(r.settings)
-            setDraft({})
-          }
+          if (!r) return
+          onChanged(r.settings)
+          setDraft((d) => {
+            // 只清除「仍等于本次提交值」的键：提交后用户的新改动必须保留。
+            // 若无条件 setDraft({})，回显会视觉回退新值，且清空 draft 会让本 effect
+            // 的 cleanup 取消掉新值尚未触发的写盘 timer —— 那是丢写。
+            const rest: Partial<LayoutPrefs> = { ...d }
+            for (const k of Object.keys(sent) as Array<keyof LayoutPrefs>) {
+              if (rest[k] === sent[k]) delete rest[k]
+            }
+            return rest
+          })
         })
         .catch(() => undefined)
     }, 300)
     return () => window.clearTimeout(timer)
-  }, [pending, base, draft, api, onChanged])
+  }, [settings, pending, draft, api, onChanged])
 
   const setWidth = useCallback((side: 'left' | 'right', width: number): void => {
     setDraft((d) => ({ ...d, [side === 'left' ? 'leftWidth' : 'rightWidth']: width }))
