@@ -3,6 +3,7 @@ import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 import type { AppSettings } from '../../shared/types/settings'
 import type { FileMeta, LoadedNote, NoteSummary } from '../../shared/types/note'
 import EditorSurface from './components/editor/EditorSurface'
+import SourceEditor from './components/editor/SourceEditor'
 import ReadToggle from './components/editor/ReadToggle'
 import StatusBar, { SourceToggle } from './components/layout/StatusBar'
 import QuickCaptureDialog from './components/capture/QuickCaptureDialog'
@@ -296,6 +297,8 @@ export default function App(): ReactElement {
       e.preventDefault()
       setSettingsOpen(true)
     } else if (e.key === 'f' || e.key === 'F') {
+      // 源码模式下不拦截：交给 CodeMirror 原生搜索面板
+      if (sourceOpen) return
       e.preventDefault()
       setFindOpen(true)
     } else if (e.key === 'k' || e.key === 'K') {
@@ -778,15 +781,12 @@ export default function App(): ReactElement {
                 <ReadToggle mode={mode} onToggle={toggleMode} />
                 {mode === 'edit' ? (
                   sourceOpen ? (
-                    // SourceEditor 属 Task 10；本任务先保留原 textarea，行为不变
-                    <textarea
-                      value={active.md}
-                      spellCheck={false}
-                      onChange={(e) => {
-                        setActive((p) => (p ? { ...p, md: e.target.value } : p))
+                    <SourceEditor
+                      md={active.md}
+                      onChange={(md) => {
+                        setActive((p) => (p ? { ...p, md } : p))
                         setDirty(true)
                       }}
-                      className="block h-full w-full resize-none bg-neutral-950 p-4 font-mono text-[13px] leading-relaxed text-neutral-200 focus:outline-none"
                     />
                   ) : (
                     <EditorSurface
