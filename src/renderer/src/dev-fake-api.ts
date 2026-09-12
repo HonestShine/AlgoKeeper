@@ -14,6 +14,7 @@ import { todayKey } from '../../shared/utils/date'
 import { newCardScheduling, schedule } from '../../shared/utils/sm2'
 import { parseBodyCards } from '../../shared/utils/cards'
 import { parseWikiTargets } from '../../shared/utils/wikilinks'
+import { DEFAULT_LAYOUT, mergeLayout, normalizeLayout } from '../../shared/utils/layout'
 
 const LS_KEY = 'alk:notes'
 const SETTINGS_KEY = 'alk:settings'
@@ -90,10 +91,18 @@ export function installFakeApi(): RendererApi {
         notesRootDefault: s.notesRootDefault ?? '<dev>/Documents',
         notesRoot: s.notesRoot ?? '<dev>/Documents',
         newCardLimit: typeof s.newCardLimit === 'number' ? s.newCardLimit : 20,
-        theme: s.theme === 'dark' ? 'dark' : 'light-github'
+        theme: s.theme === 'dark' ? 'dark' : 'light-github',
+        layout: normalizeLayout(s.layout)
       }
     } catch {
-      return { appRoot: '<dev>', notesRootDefault: '<dev>/Documents', notesRoot: '<dev>/Documents', newCardLimit: 20, theme: 'light-github' }
+      return {
+        appRoot: '<dev>',
+        notesRootDefault: '<dev>/Documents',
+        notesRoot: '<dev>/Documents',
+        newCardLimit: 20,
+        theme: 'light-github',
+        layout: { ...DEFAULT_LAYOUT }
+      }
     }
   }
 
@@ -210,7 +219,8 @@ export function installFakeApi(): RendererApi {
           newCardLimit: typeof p.newCardLimit === 'number' ? p.newCardLimit : base.newCardLimit,
           appRoot: base.appRoot,
           notesRootDefault: base.notesRootDefault,
-          theme: p.theme ?? base.theme
+          theme: p.theme ?? base.theme,
+          layout: mergeLayout(base.layout, p.layout)
         }
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
         return { settings: next }
