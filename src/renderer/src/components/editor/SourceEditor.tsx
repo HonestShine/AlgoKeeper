@@ -56,6 +56,22 @@ const akTheme = EditorView.theme(
       backgroundColor: 'var(--ak-src-active-line)',
       color: 'var(--ak-src-fg)'
     },
+    // tooltip 箭头：基础主题在 &dark 分支里把箭头伪元素写死成 #333338（我们恒 dark: true），
+    // 浅色主题下会出现「浅色气泡 + 深灰箭头」的接缝。这里把最后这些依赖 dark 取值的分支
+    // 一并覆盖掉，让箭头颜色纯走变量、跟随 app 主题 —— 不必让 dark 跟随主题（那要
+    // Compartment.reconfigure，会破坏「主题切换是纯 CSS、不重建编辑器」）。
+    // 特异性必须压过基础主题的 `&dark .cm-tooltip .cm-tooltip-arrow:before`：
+    // 后者展开后是 `.ͼ1.ͼdark .cm-tooltip .cm-tooltip-arrow:before` = (0,4,1)，
+    // 只写 `& .cm-tooltip …`（(0,3,1)）会被它压过（实测箭头仍是 #333338）。
+    // 因此把 & 与 .cm-editor 叠成同一元素的复合选择器，得到同为 (0,4,1) 的特异性，
+    // 再靠挂载顺序（akTheme 在 basicSetup 之后）取胜。
+    '&.cm-editor .cm-tooltip .cm-tooltip-arrow:before, &.cm-editor .cm-tooltip .cm-tooltip-arrow:after': {
+      borderTopColor: 'var(--ak-src-panel-bg)',
+      borderBottomColor: 'var(--ak-src-panel-bg)'
+    },
+    // 不可见字符占位（basicSetup 的 highlightSpecialChars）：
+    // 不覆盖的话会取基础主题 &dark 的 #f78，浅色主题下是错的。
+    '.cm-specialChar': { color: 'var(--ak-src-quote)' },
     '.cm-searchMatch': { backgroundColor: 'var(--ak-src-match)', outline: '1px solid var(--ak-src-border)' },
     '.cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'var(--ak-src-match-selected)' }
   },

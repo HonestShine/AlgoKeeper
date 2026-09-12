@@ -152,6 +152,10 @@ export default function App(): ReactElement {
   const toggleMode = useCallback((): void => {
     setEditorMode((s) => toggleRead(s))
     layoutCtl.set('readMode', mode !== 'read')
+    // 阅读态用的是另一套 .ak-scroll 实例且不上报/不恢复滚动比例，
+    // 比例链在这里就断了：归零，避免「源码 70% → 阅读 → 编辑（顶部）→ 再进源码」
+    // 突然又跳回 70% 的屏幕位置不一致。
+    ratioRef.current = 0
   }, [layoutCtl, mode])
 
   const toggleSource = useCallback((): void => {
@@ -159,7 +163,10 @@ export default function App(): ReactElement {
     // 从阅读态进源码态也是一次「阅读 → 编辑」转变，必须同步偏好，
     // 否则 readMode 与实际模式分叉、下次打开笔记会莫名进阅读态。
     // 副作用同样留在 updater 之外（理由见 toggleMode）。
-    if (mode === 'read') layoutCtl.set('readMode', false)
+    if (mode === 'read') {
+      layoutCtl.set('readMode', false)
+      ratioRef.current = 0 // 同上：阅读态过来的这一次同样断了比例链
+    }
   }, [layoutCtl, mode])
 
   const refreshDue = useCallback(async (): Promise<void> => {
@@ -791,6 +798,7 @@ export default function App(): ReactElement {
                 {mode === 'edit' ? (
                   sourceOpen ? (
                     <SourceEditor
+                      key={active.noteId}
                       md={active.md}
                       onChange={(md) => {
                         setActive((p) => (p ? { ...p, md } : p))
@@ -803,6 +811,7 @@ export default function App(): ReactElement {
                     />
                   ) : (
                     <EditorSurface
+                      key={active.noteId}
                       md={active.md}
                       editable
                       onOpenContext={openEditorCtx}
@@ -810,6 +819,7 @@ export default function App(): ReactElement {
                       onScrollRatio={(r) => {
                         ratioRef.current = r
                       }}
+                      initialScrollRatio={ratioRef.current}
                     />
                   )
                 ) : (
@@ -860,7 +870,7 @@ export default function App(): ReactElement {
                       </>
                     )}
                     <div className="min-w-0 flex-1">
-                      <EditorSurface md={active.md} editable={false} />
+                      <EditorSurface key={active.noteId} md={active.md} editable={false} />
                     </div>
                   </div>
                 )}

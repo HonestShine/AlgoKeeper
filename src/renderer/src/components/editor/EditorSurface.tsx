@@ -52,6 +52,8 @@ export interface EditorSurfaceProps {
   onDocChange?: (md: string) => void
   /** 内容区滚动百分比（0–1），用于与源码模式对齐滚动位置 */
   onScrollRatio?: (ratio: number) => void
+  /** 挂载时按此百分比恢复滚动位置（与 SourceEditor 同名 prop 对称，双向对齐的另一半） */
+  initialScrollRatio?: number
   /** 内容区右键（文档操作快捷菜单；未提供则保留默认菜单） */
   onOpenContext?: (e: ReactMouseEvent<HTMLElement>) => void
 }
@@ -86,9 +88,10 @@ function convertFootnoteTokens(editor: import('@tiptap/core').Editor): void {
   if (changed && tr.docChanged) editor.view.dispatch(tr)
 }
 
-export default function EditorSurface({ md, editable, onDocChange, onScrollRatio, onOpenContext }: EditorSurfaceProps): ReactElement {
+export default function EditorSurface({ md, editable, onDocChange, onScrollRatio, initialScrollRatio, onOpenContext }: EditorSurfaceProps): ReactElement {
   // 程序性 setContent 之后 onUpdate 可能异步派发，用时间窗抑制误报“用户编辑”
   const lastApplied = useRef(0)
+  const scrollHostRef = useRef<HTMLDivElement>(null)
   const editor = useEditor({
     extensions,
     content: md,
@@ -98,6 +101,20 @@ export default function EditorSurface({ md, editable, onDocChange, onScrollRatio
       onDocChange?.(mdFromEditor(e))
     }
   })
+
+  // 挂载后按传入比例恢复滚动位置（源码 → WYSIWYG 方向）。
+  // Tiptap 的内容高度同样是异步的，故沿用 SourceEditor 的 rAF 手法：放到下一帧、
+  // 在下一次绘制前生效，这样恢复动作必胜、用户看不到从顶部跳走的中间态。
+  useEffect(() => {
+    const el = scrollHostRef.current
+    if (!el || initialScrollRatio === undefined) return
+    const raf = requestAnimationFrame(() => {
+      const max = el.scrollHeight - el.clientHeight
+      if (max > 0) el.scrollTop = initialScrollRatio * max
+    })
+    return () => cancelAnimationFrame(raf)
+    // 仅在挂载时应用
+  }, [])
 
   // 注册为全局当前编辑器（供菜单动作调用）
   useEffect(() => {
@@ -213,6 +230,7 @@ export default function EditorSurface({ md, editable, onDocChange, onScrollRatio
       }}
     >
       <div
+        ref={scrollHostRef}
         className="ak-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3"
         onScroll={(e) => {
           if (!onScrollRatio) return
