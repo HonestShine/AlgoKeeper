@@ -66,6 +66,9 @@ export default function App(): ReactElement {
   const showStatus = layout.showStatus
   const booted = useRef(false)
   const noticeTimer = useRef<number | null>(null)
+  // 跨模式共享的滚动百分比（0–1）：用 ref 而非 state，避免滚动时每帧重渲染。
+  // WYSIWYG 与源码态的公式一致（滚动量 / 总溢出量），故可直接互传。
+  const ratioRef = useRef(0)
 
   const loadSummaries = useCallback(async (): Promise<void> => {
     if (!api) return
@@ -93,6 +96,8 @@ export default function App(): ReactElement {
         setEditorMode(setRead(layout.readMode))
         setDirty(false)
         setSavedAt('')
+        // 切笔记时归零滚动比例，避免下一篇继承上一篇的位置
+        ratioRef.current = 0
       } catch (err) {
         setError((err as Error).message)
       }
@@ -545,7 +550,8 @@ export default function App(): ReactElement {
         { label: '内联公式', run: () => void runEditorAction('math-inline') },
         { label: '插入图片…', run: () => void runEditorAction('image') },
         sepAction('_ec4'),
-        { label: '查找和替换…', run: () => { runEditorAction('find-open'); setFindOpen(true) } },
+        // 源码态下不打开：与 Ctrl+F 的路由一致（该对话框只驱动 Tiptap 实例）
+        { label: '查找和替换…', run: () => { if (!sourceOpen) setFindOpen(true) } },
         { label: '全选', run: () => void runEditorAction('select-all') },
         { label: '清除样式', run: () => void runEditorAction('clear-format') }
       ]
@@ -674,7 +680,10 @@ export default function App(): ReactElement {
       case 'find-next':
       case 'find-prev':
       case 'find-replace':
-        setFindOpen(true)
+        // 源码模式下 Tiptap 未挂载（setActiveEditor(null)），这个对话框只会驱动
+        // getActiveEditor() 返回的空实例 —— 打开等于打开一个不起作用的框。
+        // 与 Ctrl+F 的路由保持一致：源码态交给 CodeMirror 自己的搜索面板。
+        if (!sourceOpen) setFindOpen(true)
         break
       case 'toggle-filebar':
       case 'toggle-filetree':
@@ -787,6 +796,10 @@ export default function App(): ReactElement {
                         setActive((p) => (p ? { ...p, md } : p))
                         setDirty(true)
                       }}
+                      onScrollRatio={(r) => {
+                        ratioRef.current = r
+                      }}
+                      initialScrollRatio={ratioRef.current}
                     />
                   ) : (
                     <EditorSurface
@@ -794,6 +807,9 @@ export default function App(): ReactElement {
                       editable
                       onOpenContext={openEditorCtx}
                       onDocChange={(md) => { setActive((p) => (p ? { ...p, md } : p)); setDirty(true) }}
+                      onScrollRatio={(r) => {
+                        ratioRef.current = r
+                      }}
                     />
                   )
                 ) : (

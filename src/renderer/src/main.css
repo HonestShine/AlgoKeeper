@@ -499,6 +499,16 @@ body {
   --ak-src-comment: #71717a;
   --ak-src-number: #fdba74;
   --ak-src-type: #7dd3fc;
+  --ak-src-operator: #94a3b8;
+  --ak-src-property: #a5b4fc;
+  --ak-src-label: #fbbf24;
+  /* 搜索面板 / 输入框 / 按钮 / 悬浮层 / 匹配高亮 */
+  --ak-src-panel-bg: #18181b;
+  --ak-src-field-bg: #0a0a0a;
+  --ak-src-btn-bg: #27272a;
+  --ak-src-border: #3f3f46;
+  --ak-src-match: #2a3f5f;
+  --ak-src-match-selected: #1d4ed8;
 }
 
 /* ===== CodeMirror 源码模式主题变量（GitHub 浅色）===== */
@@ -521,4 +531,14 @@ body {
   --ak-src-comment: #6e7781;
   --ak-src-number: #953800;
   --ak-src-type: #0550ae;
+  --ak-src-operator: #59636e;
+  --ak-src-property: #6639ba;
+  --ak-src-label: #9a6700;
+  /* 搜索面板 / 输入框 / 按钮 / 悬浮层 / 匹配高亮 */
+  --ak-src-panel-bg: #f6f8fa;
+  --ak-src-field-bg: #ffffff;
+  --ak-src-btn-bg: #f6f8fa;
+  --ak-src-border: #d0d7de;
+  --ak-src-match: #ffe58f;
+  --ak-src-match-selected: #ffbb33;
 }

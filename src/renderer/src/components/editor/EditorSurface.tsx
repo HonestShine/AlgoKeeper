@@ -50,6 +50,8 @@ export interface EditorSurfaceProps {
   md: string
   editable: boolean
   onDocChange?: (md: string) => void
+  /** 内容区滚动百分比（0–1），用于与源码模式对齐滚动位置 */
+  onScrollRatio?: (ratio: number) => void
   /** 内容区右键（文档操作快捷菜单；未提供则保留默认菜单） */
   onOpenContext?: (e: ReactMouseEvent<HTMLElement>) => void
 }
@@ -84,7 +86,7 @@ function convertFootnoteTokens(editor: import('@tiptap/core').Editor): void {
   if (changed && tr.docChanged) editor.view.dispatch(tr)
 }
 
-export default function EditorSurface({ md, editable, onDocChange, onOpenContext }: EditorSurfaceProps): ReactElement {
+export default function EditorSurface({ md, editable, onDocChange, onScrollRatio, onOpenContext }: EditorSurfaceProps): ReactElement {
   // 程序性 setContent 之后 onUpdate 可能异步派发，用时间窗抑制误报“用户编辑”
   const lastApplied = useRef(0)
   const editor = useEditor({
@@ -210,7 +212,15 @@ export default function EditorSurface({ md, editable, onDocChange, onOpenContext
         }
       }}
     >
-      <div className="ak-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div
+        className="ak-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3"
+        onScroll={(e) => {
+          if (!onScrollRatio) return
+          const el = e.currentTarget
+          const max = el.scrollHeight - el.clientHeight
+          onScrollRatio(max > 0 ? el.scrollTop / max : 0)
+        }}
+      >
         <div className="ak-page">
           <EditorContent editor={editor} className="ak-editor" />
         </div>
