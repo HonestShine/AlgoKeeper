@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 import type { AppSettings } from '../../shared/types/settings'
-import type { Difficulty, FileMeta, LoadedNote, NoteStatus, NoteSummary } from '../../shared/types/note'
+import type { FileMeta, LoadedNote, NoteSummary } from '../../shared/types/note'
 import EditorSurface from './components/editor/EditorSurface'
 import QuickCaptureDialog from './components/capture/QuickCaptureDialog'
 import SaveAsDialog from './components/capture/SaveAsDialog'
@@ -14,30 +14,14 @@ import ExportDialog from './components/export/ExportDialog'
 import FindReplaceDialog from './components/find/FindReplaceDialog'
 import OutlineDialog from './components/find/OutlineDialog'
 import Workbench from './components/layout/Workbench'
+import FilePanel from './components/layout/FilePanel'
+import InspectorPanel from './components/layout/InspectorPanel'
 import { useLayoutPrefs } from './hooks/useLayoutPrefs'
 import { parseToc } from '../../shared/utils/toc'
 import type { ExportFormat, RelatedNotes } from '../../shared/types/export'
 import { runEditorAction } from './lib/editor-actions'
-
-const DIFFICULTIES: Difficulty[] = ['Easy', 'Medium', 'Hard']
-const STATUSES: NoteStatus[] = ['active', 'to-review', 'mastered', 'need-depth']
-const STATUS_LABEL: Record<NoteStatus, string> = {
-  active: '无标记',
-  'to-review': '待二刷',
-  mastered: '已掌握',
-  'need-depth': '需深入'
-}
-const DIFF_COLOR: Record<Difficulty, string> = {
-  Easy: 'bg-emerald-500/15 text-emerald-400',
-  Medium: 'bg-amber-500/15 text-amber-400',
-  Hard: 'bg-rose-500/15 text-rose-400'
-}
-
-interface ActiveState {
-  noteId: string
-  meta: FileMeta
-  md: string
-}
+import { DIFF_COLOR, STATUS_LABEL } from './lib/note-meta'
+import type { ActiveState } from './lib/note-meta'
 
 export default function App(): ReactElement {
   const api = window.api
@@ -89,7 +73,13 @@ export default function App(): ReactElement {
       setOpenNoteId(noteId)
       try {
         const note: LoadedNote = await api.notes.get(noteId)
-        setActive({ noteId: note.noteId, meta: note.meta, md: note.bodyMd })
+        // scheduling 与 note-store 同语义：未复习的笔记该键缺省（而非显式 undefined）
+        setActive({
+          noteId: note.noteId,
+          meta: note.meta,
+          md: note.bodyMd,
+          ...(note.scheduling ? { scheduling: note.scheduling } : {})
+        })
         setMode('edit')
         setDirty(false)
         setSavedAt('')
@@ -650,10 +640,6 @@ export default function App(): ReactElement {
   const wordCount = active ? active.md.replace(/[`#*_|>~]/g, '').length : 0
   const toc = active ? parseToc(active.md) : []
 
-  const labelCls = 'mb-1 text-[11px] font-medium uppercase tracking-wider text-neutral-500'
-  const fieldCls =
-    'w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[13px] text-neutral-100 focus:border-sky-600 focus:outline-none'
-
   if (!api) {
     return (
       <div className="flex h-full items-center justify-center bg-neutral-950 text-sm text-neutral-400">
@@ -695,55 +681,20 @@ export default function App(): ReactElement {
         onWidthChange={layoutCtl.setWidth}
         onToggle={layoutCtl.toggle}
         left={
-          <div className="flex min-h-0 flex-1 flex-col" onContextMenu={openPaneCtx}>
-          <div className="border-b border-neutral-800 px-3 py-2">
-            <p className="truncate text-[11px] text-neutral-500" title={settings?.notesRoot}>
-              {settings?.notesRoot}
-            </p>
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1">
-            {groups.length === 0 && <p className="px-2 py-4 text-xs text-neutral-600">还没有题解，Ctrl+Shift+N 新建</p>}
-            {groups.map(([folder, items]) => (
-              <div key={folder} className="mb-2">
-                <p
-                  className="cursor-default px-1 py-0.5 text-[11px] font-medium text-neutral-500"
-                  onContextMenu={(e) => openFolderCtx(e, folder)}
-                >
-                  📁 {folder}
-                </p>
-                {items.map((s) => (
-                  <button
-                    key={s.noteId}
-                    type="button"
-                    onClick={() => void openNote(s.noteId)}
-                    onContextMenu={(e) => openNoteCtx(e, s.noteId)}
-                    className={`block w-full rounded px-2 py-1 text-left text-[13px] hover:bg-neutral-800 ${
-                      active?.noteId === s.noteId ? 'bg-neutral-800/80 text-sky-300' : 'text-neutral-300'
-                    }`}
-                  >
-                    <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full" style={{ background: 'currentColor' }} />
-                    {s.title}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
-          <div className="border-t border-neutral-800 px-3 py-2 text-xs text-neutral-500">标签</div>
-          <div className="flex max-h-28 flex-wrap gap-1 overflow-y-auto px-3 pb-2">
-            {allTags.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => toggleTag(t)}
-                className={`rounded-full px-2 py-0.5 text-xs ${
-                  tagFilter === t ? 'bg-sky-600 text-white' : 'bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-          </div>
+          <FilePanel
+            rootPath={settings?.notesRoot ?? ''}
+            groups={groups}
+            activeNoteId={active?.noteId}
+            allTags={allTags}
+            tagFilter={tagFilter}
+            onOpen={(id) => void openNote(id)}
+            onNoteContext={openNoteCtx}
+            onFolderContext={openFolderCtx}
+            onToggleTag={toggleTag}
+            onClearTag={() => setTagFilter(null)}
+            onPaneContext={openPaneCtx}
+            onNewNote={() => setCaptureOpen(true)}
+          />
         }
         center={
           <>
@@ -828,123 +779,14 @@ export default function App(): ReactElement {
           </>
         }
         right={
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          {active ? (
-            <>
-              <p className={labelCls}>难度</p>
-              <div className="mb-3 flex gap-1">
-                {DIFFICULTIES.map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => patchMeta({ difficulty: d })}
-                    className={`rounded px-2 py-1 text-xs ${active.meta.difficulty === d ? DIFF_COLOR[d] : 'bg-neutral-800 text-neutral-400'}`}
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
-
-              <p className={labelCls}>状态</p>
-              <select
-                className={`mb-3 w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs ${fieldCls}`}
-                value={active.meta.status}
-                onChange={(e) => patchMeta({ status: e.target.value as NoteStatus })}
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_LABEL[s]}
-                  </option>
-                ))}
-              </select>
-
-              <p className={labelCls}>标签</p>
-              <div className="mb-1 flex flex-wrap gap-1">
-                {active.meta.tags.map((t) => (
-                  <span key={t} className="flex items-center gap-1 rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-200">
-                    {t}
-                    <button
-                      type="button"
-                      className="text-neutral-500 hover:text-red-400"
-                      onClick={() => patchMeta({ tags: active.meta.tags.filter((x) => x !== t) })}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="mb-3 flex gap-1">
-                <input
-                  className={fieldCls}
-                  placeholder="+ 加标签后回车"
-                  value={tagDraft}
-                  onChange={(e) => setTagDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && tagDraft.trim()) {
-                      e.preventDefault()
-                      const next = [...active.meta.tags, tagDraft.trim()]
-                      if (new Set(next).size !== next.length) setTagDraft('')
-                      else {
-                        patchMeta({ tags: next })
-                        setTagDraft('')
-                      }
-                    }
-                  }}
-                />
-              </div>
-
-              <p className={labelCls}>来源 / ID</p>
-              <p className="mb-3 rounded border border-neutral-800 bg-neutral-950 px-2 py-1 font-mono text-xs text-neutral-400">
-                {active.meta.source}/{active.meta.id}
-              </p>
-
-              <p className={labelCls}>时间</p>
-              <p className="text-[11px] text-neutral-500">
-                创建 {fmt(active.meta.createdAt)}
-                <br />
-                更新 {fmt(active.meta.updatedAt)}
-              </p>
-
-              <p className={labelCls}>关联题目</p>
-              {!related && <p className="text-xs text-neutral-600">加载中…</p>}
-              {related && related.backlinks.length === 0 && related.similar.length === 0 && (
-                <p className="text-xs text-neutral-600">暂无（用 [[题名]] 建立引用）</p>
-              )}
-              {related && related.backlinks.length > 0 && (
-                <div className="mb-2">
-                  <p className="mb-1 text-[11px] text-sky-400">反向链接 ({related.backlinks.length})</p>
-                  {related.backlinks.map((b) => (
-                    <button
-                      key={b.noteId}
-                      type="button"
-                      className="block w-full truncate rounded px-1 py-0.5 text-left text-xs text-neutral-300 hover:bg-neutral-800"
-                      onClick={() => void openNote(b.noteId)}
-                    >
-                      {b.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {related && related.similar.length > 0 && (
-                <div>
-                  <p className="mb-1 text-[11px] text-neutral-500">同标签推荐</p>
-                  {related.similar.map((b) => (
-                    <button
-                      key={b.noteId}
-                      type="button"
-                      className="block w-full truncate rounded px-1 py-0.5 text-left text-xs text-neutral-300 hover:bg-neutral-800"
-                      onClick={() => void openNote(b.noteId)}
-                    >
-                      {b.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-xs text-neutral-600">选择题解查看与编辑元数据</p>
-          )}
-          </div>
+          <InspectorPanel
+            active={active}
+            related={related}
+            tagDraft={tagDraft}
+            onTagDraftChange={setTagDraft}
+            onPatchMeta={patchMeta}
+            onOpenNote={(id) => void openNote(id)}
+          />
         }
       />
 
@@ -1042,11 +884,4 @@ export default function App(): ReactElement {
       )}
     </div>
   )
-}
-
-function fmt(iso: string): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
