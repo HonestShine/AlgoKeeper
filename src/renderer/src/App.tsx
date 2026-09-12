@@ -82,6 +82,12 @@ export default function App(): ReactElement {
   const openNote = useCallback(
     async (noteId: string): Promise<void> => {
       if (!api) return
+      // 重复点开当前这篇：直接返回。否则会用磁盘内容 setActive + setDirty(false)，
+      // 而 key={active.noteId} 没变 ⇒ 编辑器不重挂 ⇒ [md, editor] effect 拿磁盘版
+      // setContent 把正文整体回退 —— 未保存编辑被静默丢弃，无确认无提示。
+      // 同时这也挡住了「点当前这篇却把滚动比例归零」：下面那句 ratioRef.current = 0
+      // 现在只会在 noteId 真的变了时执行（等价于 if (noteId !== active?.noteId)）。
+      if (noteId === active?.noteId) return
       setOpenNoteId(noteId)
       try {
         const note: LoadedNote = await api.notes.get(noteId)
@@ -96,13 +102,14 @@ export default function App(): ReactElement {
         setEditorMode(setRead(layout.readMode))
         setDirty(false)
         setSavedAt('')
-        // 切笔记时归零滚动比例，避免下一篇继承上一篇的位置
+        // 切笔记时归零滚动比例，避免下一篇继承上一篇的位置。
+        // 同 noteId 的重开已在函数开头早退，故这里必定是「真的换了笔记」。
         ratioRef.current = 0
       } catch (err) {
         setError((err as Error).message)
       }
     },
-    [api, layout.readMode]
+    [api, layout.readMode, active?.noteId]
   )
 
   useEffect(() => {
@@ -113,9 +120,16 @@ export default function App(): ReactElement {
         setError('window.api 未注入：请在 Electron 应用（或 Playwright + 假后端）中运行')
         return
       }
-      const st = await window.api.settings.get()
-      setSettings(st.settings)
-      await loadSummaries()
+      // 首启读设置会 mkdir(notesRoot)：目录不可写即抛错。这里必须兜住 ——
+      // 否则 unhandled rejection 会让 settings 恒 null、loadSummaries 永不执行，
+      // 而界面上不显示任何错误（项目约束：不得静默失败）。
+      try {
+        const st = await window.api.settings.get()
+        setSettings(st.settings)
+        await loadSummaries()
+      } catch (err) {
+        setError(`初始化失败：${(err as Error).message}。请检查笔记目录是否可写，必要时在设置中迁移到可写目录。`)
+      }
     })()
   }, [api, loadSummaries])
 
