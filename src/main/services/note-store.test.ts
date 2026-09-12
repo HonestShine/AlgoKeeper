@@ -91,4 +91,20 @@ describe('note-store (真实 fs)', () => {
     expect(() => assertSafeNoteId('a/../b')).toThrow()
     expect(() => assertSafeNoteId('leetcode/two-sum')).not.toThrow()
   })
+
+  it('readNote 带出 frontmatter 的 scheduling', async () => {
+    await createNote(root, DRAFT)
+    const file = join(root, 'leetcode', 'two-sum.md')
+    const raw = await fs.readFile(file, 'utf8')
+    await fs.writeFile(file, raw.replace('---\n', `---\nscheduling:\n  main:\n    repetitions: 4\n    easeFactor: 2.36\n    interval: 7\n    due: "2026-09-15"\n    lapses: 1\n    lastReviewed: "2026-09-08"\n`), 'utf8')
+    const note = await readNote(root, 'leetcode/two-sum')
+    expect(note.scheduling?.main?.repetitions).toBe(4)
+    expect(note.scheduling?.main?.easeFactor).toBe(2.36)
+  })
+
+  it('readNote 无 scheduling 时该字段缺省', async () => {
+    await createNote(root, DRAFT)
+    const note = await readNote(root, 'leetcode/two-sum')
+    expect(note.scheduling).toBeUndefined()
+  })
 })
