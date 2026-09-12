@@ -11,6 +11,8 @@ Documents/
 # 开发/测试产物
 .playwright-mcp/
 /algokeeper-m0-shell.png
+# 变异/反事实验证时的临时源备份（只应落在 os.tmpdir()，不得入库）
+*.mutbak
 
 # Claude/Agent 技能包与本地配置（由 skills-lock.json 可复现，不入库）
 .agents/

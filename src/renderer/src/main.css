@@ -355,3 +355,190 @@ body {
   background: #ffffff;
   color: #1f2328;
 }
+
+/* ===== 内容限宽（编辑态与阅读态共用）===== */
+:root {
+  --ak-content-width: 800px;
+}
+:root[data-content-width='narrow'] {
+  --ak-content-width: 680px;
+}
+:root[data-content-width='medium'] {
+  --ak-content-width: 800px;
+}
+:root[data-content-width='full'] {
+  --ak-content-width: 100%;
+}
+
+.ak-page {
+  max-width: var(--ak-content-width);
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* 代码块与表格不跟随正文压缩，超宽时区块内横向滚动 */
+.ak-editor pre,
+.ak-editor table {
+  max-width: none;
+}
+
+/* 超宽表格在「表格区块内」横向滚动，而不是把整个文档撑宽。
+   ProseMirror/tiptap 的表格恒被 TableView（可编辑态由 columnResizing、
+   只读态由 addNodeView）包在 div.tableWrapper 里，两种模式都有这个容器，
+   故此处同时覆盖编辑态与阅读态。 */
+.ak-editor .tableWrapper {
+  overflow-x: auto;
+}
+
+/* ===== 排版精修：列表与分割线 ===== */
+.ak-editor ul,
+.ak-editor ol {
+  margin: 0.4em 0;
+}
+.ak-editor li {
+  margin: 0.15em 0;
+}
+.ak-editor li::marker {
+  color: #71717a;
+}
+.ak-editor hr {
+  border: none;
+  border-top: 1px solid #3f3f46;
+  margin: 1.2em 0;
+}
+
+/* ===== 排版精修：表格斑马纹与表头 ===== */
+.ak-editor table {
+  width: 100%;
+  font-size: 13px;
+}
+/* 注意：不要改回 .ak-editor thead th。ProseMirror 的 toDOM/renderHTML 恒产出
+   <table><tbody>…（prosemirror-tables `["table", ["tbody", 0]]`；
+   @tiptap/extension-table `["table", attrs, colgroup, ["tbody", 0]]`），
+   表头行的 <th> 就在 tbody 的第 1 行里，页面上根本不存在 thead —— 用 thead 选
+   会把表头样式 100% 落空。 */
+.ak-editor th {
+  background: #27272a;
+  font-weight: 600;
+}
+/* 相位：表头行占 tbody 的 #1，所以数据行的第 1 行是 tbody:nth-child(2)。
+   条纹要落在「数据行的第 2、4…行」，就必须用 odd —— odd 命中 tbody 子元素
+   1/3/5，其中 #1 是表头行、其子元素是 th 而非 td，被 td 条件天然排除，
+   于是实际命中数据行 2、4…。同理不要改回 even。 */
+.ak-editor tbody tr:nth-child(odd) td {
+  background: rgb(39 39 42 / 0.4);
+}
+
+/* ===== 排版精修：代码块圆角与滚动条 ===== */
+.ak-editor pre {
+  border-radius: 8px;
+  padding: 0.75em 0.9em;
+}
+.ak-editor pre::-webkit-scrollbar {
+  height: 8px;
+}
+.ak-editor pre::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+
+/* ===== 阅读态专属排版 ===== */
+[data-mode='read'] .ak-editor {
+  font-size: 15px;
+  line-height: 1.9;
+}
+[data-mode='read'] .ak-editor p {
+  margin: 0.75em 0;
+}
+[data-mode='read'] .ak-editor h1,
+[data-mode='read'] .ak-editor h2,
+[data-mode='read'] .ak-editor h3 {
+  margin-top: 1.2em;
+}
+
+/* ===== 浅色主题：限宽与精修补色 ===== */
+[data-theme='light-github'] .ak-editor li::marker {
+  color: #8b949e;
+}
+[data-theme='light-github'] .ak-editor hr {
+  border-top-color: #d0d7de;
+}
+[data-theme='light-github'] .ak-editor th {
+  background: #f6f8fa;
+}
+[data-theme='light-github'] .ak-editor tbody tr:nth-child(odd) td {
+  background: rgb(246 248 250 / 0.7);
+}
+[data-theme='light-github'] .ak-editor pre::-webkit-scrollbar-thumb {
+  background: #c1c9d1;
+}
+
+/* ===== 拖拽中禁用文本选中与过渡 ===== */
+:root[data-resizing='1'] * {
+  user-select: none !important;
+  transition: none !important;
+}
+
+/* ===== CodeMirror 源码模式主题变量（深色）===== */
+:root {
+  --ak-src-bg: #0a0a0a;
+  --ak-src-fg: #d4d4d8;
+  --ak-src-gutter-fg: #52525b;
+  --ak-src-active-line: #18181b;
+  --ak-src-selection: #1e3a5f;
+  --ak-src-cursor: #38bdf8;
+  --ak-src-heading: #fafafa;
+  --ak-src-emphasis: #e4e4e7;
+  --ak-src-link: #38bdf8;
+  --ak-src-code: #f0abfc;
+  --ak-src-quote: #a1a1aa;
+  --ak-src-list: #71717a;
+  --ak-src-fence: #52525b;
+  --ak-src-keyword: #c084fc;
+  --ak-src-string: #86efac;
+  --ak-src-comment: #71717a;
+  --ak-src-number: #fdba74;
+  --ak-src-type: #7dd3fc;
+  --ak-src-operator: #94a3b8;
+  --ak-src-property: #a5b4fc;
+  --ak-src-label: #fbbf24;
+  /* 搜索面板 / 输入框 / 按钮 / 悬浮层 / 匹配高亮 */
+  --ak-src-panel-bg: #18181b;
+  --ak-src-field-bg: #0a0a0a;
+  --ak-src-btn-bg: #27272a;
+  --ak-src-border: #3f3f46;
+  --ak-src-match: #2a3f5f;
+  --ak-src-match-selected: #1d4ed8;
+}
+
+/* ===== CodeMirror 源码模式主题变量（GitHub 浅色）===== */
+:root[data-theme='light-github'] {
+  --ak-src-bg: #ffffff;
+  --ak-src-fg: #1f2328;
+  --ak-src-gutter-fg: #8b949e;
+  --ak-src-active-line: #f6f8fa;
+  --ak-src-selection: #cfe3ff;
+  --ak-src-cursor: #0969da;
+  --ak-src-heading: #1f2328;
+  --ak-src-emphasis: #1f2328;
+  --ak-src-link: #0969da;
+  --ak-src-code: #8250df;
+  --ak-src-quote: #59636e;
+  --ak-src-list: #8b949e;
+  --ak-src-fence: #8b949e;
+  --ak-src-keyword: #cf222e;
+  --ak-src-string: #0a3069;
+  --ak-src-comment: #6e7781;
+  --ak-src-number: #953800;
+  --ak-src-type: #0550ae;
+  --ak-src-operator: #59636e;
+  --ak-src-property: #6639ba;
+  --ak-src-label: #9a6700;
+  /* 搜索面板 / 输入框 / 按钮 / 悬浮层 / 匹配高亮 */
+  --ak-src-panel-bg: #f6f8fa;
+  --ak-src-field-bg: #ffffff;
+  --ak-src-btn-bg: #f6f8fa;
+  --ak-src-border: #d0d7de;
+  --ak-src-match: #ffe58f;
+  --ak-src-match-selected: #ffbb33;
+}

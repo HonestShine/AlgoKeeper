@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { parseFrontmatter, buildNoteMd } from './markdown-parser'
+import { schedulingFromExtras } from '../../shared/utils/scheduling'
 import type { FileMeta, LoadedNote, NewNoteDraft, NoteSummary, SaveAsTarget, SaveNoteInput } from '../../shared/types/note'
 
 const DEFAULT_STATUS: FileMeta['status'] = 'active'
@@ -97,12 +98,14 @@ export async function readNote(root: string, noteId: string): Promise<LoadedNote
   }
   const parsed = parseFrontmatter(raw)
   const m = parsed.meta
+  const scheduling = schedulingFromExtras(parsed.extras)
   return {
     noteId,
     filePath: file,
     meta: { ...m, status: m.status || DEFAULT_STATUS },
     bodyMd: parsed.bodyMd,
-    warnings: parsed.warnings
+    warnings: parsed.warnings,
+    ...(scheduling ? { scheduling } : {})
   }
 }
 

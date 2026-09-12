@@ -14,6 +14,7 @@ import { todayKey } from '../../shared/utils/date'
 import { newCardScheduling, schedule } from '../../shared/utils/sm2'
 import { parseBodyCards } from '../../shared/utils/cards'
 import { parseWikiTargets } from '../../shared/utils/wikilinks'
+import { DEFAULT_LAYOUT, mergeLayout, normalizeLayout } from '../../shared/utils/layout'
 
 const LS_KEY = 'alk:notes'
 const SETTINGS_KEY = 'alk:settings'
@@ -67,7 +68,18 @@ export function installFakeApi(): RendererApi {
   const read = (noteId: string): LoadedNote => {
     const found = notes.find((n) => n.noteId === noteId)
     if (!found) throw Object.assign(new Error(`笔记不存在: ${noteId}`), { code: 'note.not-found' })
-    return { noteId: found.noteId, filePath: `<virtual>/${noteId}.md`, meta: { ...found.meta }, bodyMd: found.bodyMd, warnings: [] }
+    // 与真实主进程 note-store.readNote 同语义：把 scheduling 透出（键不存在 ≠ 值为 undefined）。
+    // 不透出的话，网页假后端路径下「复习统计」恒显示「尚未复习（新卡）」——
+    // 即使刚做完复习（commit 已写 alk:sched）也读不到。
+    const sched = readSched()[noteId]
+    return {
+      noteId: found.noteId,
+      filePath: `<virtual>/${noteId}.md`,
+      meta: { ...found.meta },
+      bodyMd: found.bodyMd,
+      warnings: [],
+      ...(sched ? { scheduling: sched } : {})
+    }
   }
 
   const summarize = (n: StoreNote) => ({
@@ -90,10 +102,18 @@ export function installFakeApi(): RendererApi {
         notesRootDefault: s.notesRootDefault ?? '<dev>/Documents',
         notesRoot: s.notesRoot ?? '<dev>/Documents',
         newCardLimit: typeof s.newCardLimit === 'number' ? s.newCardLimit : 20,
-        theme: s.theme === 'dark' ? 'dark' : 'light-github'
+        theme: s.theme === 'dark' ? 'dark' : 'light-github',
+        layout: normalizeLayout(s.layout)
       }
     } catch {
-      return { appRoot: '<dev>', notesRootDefault: '<dev>/Documents', notesRoot: '<dev>/Documents', newCardLimit: 20, theme: 'light-github' }
+      return {
+        appRoot: '<dev>',
+        notesRootDefault: '<dev>/Documents',
+        notesRoot: '<dev>/Documents',
+        newCardLimit: 20,
+        theme: 'light-github',
+        layout: { ...DEFAULT_LAYOUT }
+      }
     }
   }
 
@@ -210,7 +230,8 @@ export function installFakeApi(): RendererApi {
           newCardLimit: typeof p.newCardLimit === 'number' ? p.newCardLimit : base.newCardLimit,
           appRoot: base.appRoot,
           notesRootDefault: base.notesRootDefault,
-          theme: p.theme ?? base.theme
+          theme: p.theme ?? base.theme,
+          layout: mergeLayout(base.layout, p.layout)
         }
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(next))
         return { settings: next }

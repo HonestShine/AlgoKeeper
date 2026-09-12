@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { promises as fs } from 'node:fs'
 import { dirname, join } from 'node:path'
 import type { AppSettings, SettingsUpdate } from '../../shared/types/settings'
+import { mergeLayout, normalizeLayout } from '../../shared/utils/layout'
 
 export const DEFAULT_NEW_CARD_LIMIT = 20
 
@@ -9,6 +10,7 @@ interface Stored {
   notesRoot?: string
   newCardLimit?: number
   theme?: string
+  layout?: unknown
 }
 
 function themeOf(v: unknown): 'dark' | 'light-github' {
@@ -35,7 +37,12 @@ async function readStored(): Promise<Stored> {
   try {
     const raw = await fs.readFile(settingsFile(), 'utf8')
     const parsed = JSON.parse(raw) as Stored
-    return { notesRoot: parsed.notesRoot, newCardLimit: parsed.newCardLimit, theme: parsed.theme }
+    return {
+      notesRoot: parsed.notesRoot,
+      newCardLimit: parsed.newCardLimit,
+      theme: parsed.theme,
+      layout: parsed.layout
+    }
   } catch {
     return {}
   }
@@ -53,17 +60,24 @@ export async function getSettings(): Promise<AppSettings> {
   const stored = await readStored()
   const notesRoot = stored.notesRoot?.trim() || def.notesRootDefault
   await fs.mkdir(notesRoot, { recursive: true })
-  return { notesRoot, ...def, newCardLimit: clampNewCardLimit(stored.newCardLimit), theme: themeOf(stored.theme) }
+  return {
+    notesRoot,
+    ...def,
+    newCardLimit: clampNewCardLimit(stored.newCardLimit),
+    theme: themeOf(stored.theme),
+    layout: normalizeLayout(stored.layout)
+  }
 }
 
-/** 更新并持久化（笔记目录 / 每日新卡上限 / 主题等） */
+/** 更新并持久化（笔记目录 / 每日新卡上限 / 主题 / 布局） */
 export async function updateSettings(patch: SettingsUpdate): Promise<AppSettings> {
   const def = resolveDefaults()
   const stored = await readStored()
   const notesRoot = patch.notesRoot?.trim() ? patch.notesRoot.trim() : stored.notesRoot?.trim() || def.notesRootDefault
   const newCardLimit = clampNewCardLimit(patch.newCardLimit ?? stored.newCardLimit)
   const theme = themeOf(patch.theme ?? stored.theme)
+  const layout = mergeLayout(normalizeLayout(stored.layout), patch.layout)
   if (patch.notesRoot?.trim()) await fs.mkdir(notesRoot, { recursive: true })
-  await persist({ notesRoot, newCardLimit, theme })
-  return { notesRoot, ...def, newCardLimit, theme }
+  await persist({ notesRoot, newCardLimit, theme, layout })
+  return { notesRoot, ...def, newCardLimit, theme, layout }
 }

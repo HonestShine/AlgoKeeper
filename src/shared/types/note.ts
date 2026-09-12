@@ -1,9 +1,18 @@
 /** 题解笔记领域类型（M1 子集，字段与 docs/technical-design.md §3 一致） */
+import type { SchedulingInfo } from './srs'
 
 export type Difficulty = 'Easy' | 'Medium' | 'Hard'
 
 /** 手动状态标记；缺省 'active'（无标记） */
 export type NoteStatus = 'active' | 'to-review' | 'mastered' | 'need-depth'
+
+/** frontmatter scheduling 的类型化视图（派生展示用，不参与写盘） */
+export interface NoteScheduling {
+  /** 整题卡调度 */
+  main?: SchedulingInfo
+  /** 拆卡调度，键为 qhash */
+  cards?: Record<string, SchedulingInfo>
+}
 
 /** 一条题解 .md 的头部元数据（作者字段；调度 scheduling 保留为未知键，不在此建模） */
 export interface FileMeta {
@@ -46,6 +55,8 @@ export interface LoadedNote {
   meta: FileMeta
   bodyMd: string
   warnings: string[]
+  /** 复习调度（来自 frontmatter scheduling 未知键）；未复习过则缺省 */
+  scheduling?: NoteScheduling
 }
 
 /** 保存入参（meta 与正文由编辑器分别产出后合并提交） */

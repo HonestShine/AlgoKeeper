@@ -4,7 +4,8 @@ import { buildNoteMd, parseFrontmatter } from './markdown-parser'
 import { parseBodyCards } from '../../shared/utils/cards'
 import { newCardScheduling, schedule } from '../../shared/utils/sm2'
 import { todayKey } from '../../shared/utils/date'
-import type { CardSessionItem, ReviewCommitOutcome, ReviewFilter, ReviewLogEntry, ReviewResult, SchedulingInfo } from '../../shared/types/srs'
+import { toScheduling } from '../../shared/utils/scheduling'
+import type { CardSessionItem, ReviewCommitOutcome, ReviewFilter, ReviewLogEntry, ReviewResult } from '../../shared/types/srs'
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -12,23 +13,6 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 /** 供 indexer 等复用：frontmatter 调度对象 → SchedulingInfo（导出版） */
 export { toScheduling as schedFromUnknown }
-
-function num(v: unknown): number | undefined {
-  return typeof v === 'number' && Number.isFinite(v) ? v : undefined
-}
-
-/** 把 frontmatter 中的调度对象收紧为 SchedulingInfo；缺字段视为未调度 */
-function toScheduling(v: unknown): SchedulingInfo | undefined {
-  if (!isRecord(v)) return undefined
-  const repetitions = num(v.repetitions)
-  const easeFactor = num(v.easeFactor)
-  const interval = num(v.interval)
-  const due = typeof v.due === 'string' ? v.due : undefined
-  const lapses = num(v.lapses) ?? 0
-  const lastReviewed = typeof v.lastReviewed === 'string' ? v.lastReviewed : undefined
-  if (repetitions === undefined || easeFactor === undefined || interval === undefined || !due) return undefined
-  return { repetitions, easeFactor, interval, due, lapses, lastReviewed }
-}
 
 const GRADES = new Set([1, 2, 3, 4])
 
