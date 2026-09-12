@@ -5,7 +5,7 @@ import { createLowlight, common } from 'lowlight'
 import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
 import Placeholder from '@tiptap/extension-placeholder'
 import MathExtension from '@aarkue/tiptap-math-extension'
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 import { Table } from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
@@ -200,22 +200,6 @@ export default function EditorSurface({ md, editable, onDocChange, onOpenContext
     return () => dom.removeEventListener('click', onClick)
   }, [editor])
 
-  const btn = useCallback(
-    (label: string, title: string, run: () => void): ReactElement => (
-      <button
-        key={label}
-        type="button"
-        title={title}
-        disabled={!editor}
-        onClick={run}
-        className="rounded px-1.5 py-0.5 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100 disabled:opacity-40"
-      >
-        {label}
-      </button>
-    ),
-    [editor]
-  )
-
   return (
     <div
       className="flex h-full flex-col"
@@ -226,23 +210,10 @@ export default function EditorSurface({ md, editable, onDocChange, onOpenContext
         }
       }}
     >
-      {editable && (
-      <div className="flex items-center gap-0.5 border-b border-neutral-800/70 px-2 py-1">
-        {btn('B', '粗体 Ctrl+B', () => editor?.chain().focus().toggleBold().run())}
-        {btn('I', '斜体 Ctrl+I', () => editor?.chain().focus().toggleItalic().run())}
-        {btn('<>', '行内代码', () => editor?.chain().focus().toggleCode().run())}
-        {btn('H1', '一级标题', () => editor?.chain().focus().toggleHeading({ level: 1 }).run())}
-        {btn('H2', '二级标题', () => editor?.chain().focus().toggleHeading({ level: 2 }).run())}
-        {btn('H3', '三级标题', () => editor?.chain().focus().toggleHeading({ level: 3 }).run())}
-        {btn('≡', '无序列表', () => editor?.chain().focus().toggleBulletList().run())}
-        {btn('1.', '有序列表', () => editor?.chain().focus().toggleOrderedList().run())}
-        <span className="mx-1 h-4 w-px bg-neutral-800" />
-        {btn('↶', '撤销', () => editor?.chain().focus().undo().run())}
-        {btn('↷', '重做', () => editor?.chain().focus().redo().run())}
-      </div>
-      )}
       <div className="ak-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3">
-        <EditorContent editor={editor} className="ak-editor" />
+        <div className="ak-page">
+          <EditorContent editor={editor} className="ak-editor" />
+        </div>
       </div>
     </div>
   )

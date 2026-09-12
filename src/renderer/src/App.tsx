@@ -153,6 +153,11 @@ export default function App(): ReactElement {
     document.documentElement.dataset.theme = settings?.theme ?? 'light-github'
   }, [settings?.theme])
 
+  // 内容限宽档位 → 根节点属性
+  useEffect(() => {
+    document.documentElement.dataset.contentWidth = layout.contentWidth
+  }, [layout.contentWidth])
+
   // 轻提示（toast）：短暂显示后自动消失
   const note = (msg: string): void => {
     setNotice(msg)

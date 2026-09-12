@@ -355,3 +355,109 @@ body {
   background: #ffffff;
   color: #1f2328;
 }
+
+/* ===== 内容限宽（编辑态与阅读态共用）===== */
+:root {
+  --ak-content-width: 800px;
+}
+:root[data-content-width='narrow'] {
+  --ak-content-width: 680px;
+}
+:root[data-content-width='medium'] {
+  --ak-content-width: 800px;
+}
+:root[data-content-width='full'] {
+  --ak-content-width: 100%;
+}
+
+.ak-page {
+  max-width: var(--ak-content-width);
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* 代码块与表格不跟随正文压缩，超宽时区块内横向滚动 */
+.ak-editor pre,
+.ak-editor table {
+  max-width: none;
+}
+
+/* ===== 排版精修：列表与分割线 ===== */
+.ak-editor ul,
+.ak-editor ol {
+  margin: 0.4em 0;
+}
+.ak-editor li {
+  margin: 0.15em 0;
+}
+.ak-editor li::marker {
+  color: #71717a;
+}
+.ak-editor hr {
+  border: none;
+  border-top: 1px solid #3f3f46;
+  margin: 1.2em 0;
+}
+
+/* ===== 排版精修：表格斑马纹与表头 ===== */
+.ak-editor table {
+  width: 100%;
+  font-size: 13px;
+}
+.ak-editor thead th {
+  background: #27272a;
+  font-weight: 600;
+}
+.ak-editor tbody tr:nth-child(even) td {
+  background: rgb(39 39 42 / 0.4);
+}
+
+/* ===== 排版精修：代码块圆角与滚动条 ===== */
+.ak-editor pre {
+  border-radius: 8px;
+  padding: 0.75em 0.9em;
+}
+.ak-editor pre::-webkit-scrollbar {
+  height: 8px;
+}
+.ak-editor pre::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+
+/* ===== 阅读态专属排版 ===== */
+[data-mode='read'] .ak-editor {
+  font-size: 15px;
+  line-height: 1.9;
+}
+[data-mode='read'] .ak-editor p {
+  margin: 0.75em 0;
+}
+[data-mode='read'] .ak-editor h1,
+[data-mode='read'] .ak-editor h2,
+[data-mode='read'] .ak-editor h3 {
+  margin-top: 1.2em;
+}
+
+/* ===== 浅色主题：限宽与精修补色 ===== */
+[data-theme='light-github'] .ak-editor li::marker {
+  color: #8b949e;
+}
+[data-theme='light-github'] .ak-editor hr {
+  border-top-color: #d0d7de;
+}
+[data-theme='light-github'] .ak-editor thead th {
+  background: #f6f8fa;
+}
+[data-theme='light-github'] .ak-editor tbody tr:nth-child(even) td {
+  background: rgb(246 248 250 / 0.7);
+}
+[data-theme='light-github'] .ak-editor pre::-webkit-scrollbar-thumb {
+  background: #c1c9d1;
+}
+
+/* ===== 拖拽中禁用文本选中与过渡 ===== */
+:root[data-resizing='1'] * {
+  user-select: none !important;
+  transition: none !important;
+}
