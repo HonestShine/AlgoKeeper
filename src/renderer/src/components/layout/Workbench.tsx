@@ -35,6 +35,43 @@ const SIDE_LABEL: Record<'left' | 'right', string> = { left: '左栏', right: '�
 export default function Workbench(p: WorkbenchProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<'left' | 'right' | null>(null)
+  // F4：折叠一栏会把分隔条（或栏头折叠按钮）卸载，浏览器于是把焦点丢给 <body>，
+  // 键盘用户再也回不到展开态。这里给 rail 的展开按钮留 ref，折叠后把焦点交给它。
+  const leftExpandRef = useRef<HTMLButtonElement>(null)
+  const rightExpandRef = useRef<HTMLButtonElement>(null)
+  const prevVisible = useRef({ left: p.leftVisible, right: p.rightVisible })
+  // 用户是否已经和界面交互过（用于区分「用户折叠」与「启动时异步载入偏好导致的折叠」）
+  const interacted = useRef(false)
+
+  useEffect(() => {
+    const mark = (): void => {
+      interacted.current = true
+    }
+    window.addEventListener('pointerdown', mark, true)
+    window.addEventListener('keydown', mark, true)
+    return () => {
+      window.removeEventListener('pointerdown', mark, true)
+      window.removeEventListener('keydown', mark, true)
+    }
+  }, [])
+
+  useEffect(() => {
+    const prev = prevVisible.current
+    prevVisible.current = { left: p.leftVisible, right: p.rightVisible }
+    // 只在「展开 → 折叠」的转变上补焦：prevVisible 初值即当前值，挂载时不聚焦。
+    const collapsedLeft = prev.left && !p.leftVisible
+    const collapsedRight = prev.right && !p.rightVisible
+    if (!collapsedLeft && !collapsedRight) return
+    // 启动时 settings.json 到位可能把原本默认展开的一栏折叠 —— 那不是用户操作，
+    // 不该把焦点从别处抢过来（初始即为折叠态时不聚焦）。
+    if (!interacted.current) return
+    // 只有「确实因为被卸载而丢掉焦点」（activeElement 掉到 body / 已脱离文档）才补焦；
+    // 焦点还停在中栏输入框、正文或菜单项上时一律不抢。
+    const el = document.activeElement
+    if (!(el === null || el === document.body || !el.isConnected)) return
+    if (collapsedLeft) leftExpandRef.current?.focus()
+    else rightExpandRef.current?.focus()
+  }, [p.leftVisible, p.rightVisible])
 
   // 容器尺寸变化时重新解析宽度，保证正文始终有 MIN_CONTENT_WIDTH
   useEffect(() => {
@@ -166,6 +203,7 @@ export default function Workbench(p: WorkbenchProps): ReactElement {
       style={{ width: RAIL_WIDTH, borderRightWidth: side === 'left' ? 1 : 0, borderLeftWidth: side === 'left' ? 0 : 1 }}
     >
       <button
+        ref={side === 'left' ? leftExpandRef : rightExpandRef}
         type="button"
         title={`展开${SIDE_LABEL[side]} Ctrl+${side === 'left' ? '1' : 'Shift+B'}`}
         onClick={() => p.onToggle(side)}

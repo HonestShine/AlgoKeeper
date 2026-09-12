@@ -3,6 +3,8 @@ import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react'
 import type { AppSettings } from '../../shared/types/settings'
 import type { FileMeta, LoadedNote, NoteSummary } from '../../shared/types/note'
 import EditorSurface from './components/editor/EditorSurface'
+import ReadToggle from './components/editor/ReadToggle'
+import StatusBar, { SourceToggle } from './components/layout/StatusBar'
 import QuickCaptureDialog from './components/capture/QuickCaptureDialog'
 import SaveAsDialog from './components/capture/SaveAsDialog'
 import ReviewSession from './components/review/ReviewSession'
@@ -20,6 +22,8 @@ import { useLayoutPrefs } from './hooks/useLayoutPrefs'
 import { parseToc } from '../../shared/utils/toc'
 import type { ExportFormat, RelatedNotes } from '../../shared/types/export'
 import { runEditorAction } from './lib/editor-actions'
+import { setRead, setSource, toggleRead } from './lib/editor-modes'
+import type { EditorModeState } from './lib/editor-modes'
 import { DIFF_COLOR, STATUS_LABEL } from './lib/note-meta'
 import type { ActiveState } from './lib/note-meta'
 
@@ -28,7 +32,12 @@ export default function App(): ReactElement {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [summaries, setSummaries] = useState<NoteSummary[]>([])
   const [active, setActive] = useState<ActiveState | null>(null)
-  const [mode, setMode] = useState<'edit' | 'read'>('edit')
+  // 编辑/阅读/源码三态合一：由 editor-modes 的纯函数构造器推进（阅读态与源码态互斥）
+  const [editorMode, setEditorMode] = useState<EditorModeState>({ mode: 'edit', source: false })
+  const mode = editorMode.mode
+  const sourceOpen = editorMode.source
+  // 阅读态大纲的折叠状态：仅会话内保留（不进 LayoutPrefs，跨笔记沿用同一选择）
+  const [tocOpen, setTocOpen] = useState(true)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState('')
@@ -44,7 +53,6 @@ export default function App(): ReactElement {
   const [findOpen, setFindOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const [outlineOpen, setOutlineOpen] = useState(false)
-  const [sourceOpen, setSourceOpen] = useState(false)
   const [dueCount, setDueCount] = useState(0)
   const [error, setError] = useState('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
@@ -80,14 +88,15 @@ export default function App(): ReactElement {
           md: note.bodyMd,
           ...(note.scheduling ? { scheduling: note.scheduling } : {})
         })
-        setMode('edit')
+        // 打开笔记时按偏好决定是否直接进阅读态（layout.readMode 跨笔记保持）
+        setEditorMode(setRead(layout.readMode))
         setDirty(false)
         setSavedAt('')
       } catch (err) {
         setError((err as Error).message)
       }
     },
-    [api]
+    [api, layout.readMode]
   )
 
   useEffect(() => {
@@ -131,8 +140,16 @@ export default function App(): ReactElement {
     setDirty(true)
   }, [])
 
+  // 副作用必须留在 updater 之外：StrictMode 下 React 会双调 updater，
+  // 把 layoutCtl.set(...) 写进 updater 会写两次偏好；且 updater 内读到的值与
+  // 闭包里的 mode 可能不同批次。这里用闭包里的 mode 取反，与 updater 输入无关。
   const toggleMode = useCallback((): void => {
-    setMode((m) => (m === 'edit' ? 'read' : 'edit'))
+    setEditorMode((s) => toggleRead(s))
+    layoutCtl.set('readMode', mode !== 'read')
+  }, [layoutCtl, mode])
+
+  const toggleSource = useCallback((): void => {
+    setEditorMode((s) => setSource(!s.source))
   }, [])
 
   const refreshDue = useCallback(async (): Promise<void> => {
@@ -157,6 +174,14 @@ export default function App(): ReactElement {
   useEffect(() => {
     document.documentElement.dataset.contentWidth = layout.contentWidth
   }, [layout.contentWidth])
+
+  // 模式 → 根节点属性（阅读态排版 / 源码态样式 / 专注模式）
+  useEffect(() => {
+    const root = document.documentElement
+    root.dataset.mode = mode
+    root.dataset.source = sourceOpen ? '1' : '0'
+    root.dataset.focus = layout.focusMode ? '1' : '0'
+  }, [mode, sourceOpen, layout.focusMode])
 
   // 轻提示（toast）：短暂显示后自动消失
   const note = (msg: string): void => {
@@ -245,6 +270,23 @@ export default function App(): ReactElement {
   hotkeyRef.current = (e: KeyboardEvent): void => {
     const ctrl = e.ctrlKey || e.metaKey
     if (!ctrl || e.altKey) return
+    // 源码模式切换
+    if (e.key === '/') {
+      e.preventDefault()
+      toggleSource()
+      return
+    }
+    // 左右栏折叠（Workbench 的 rail / 分隔条 tooltip 承诺的快捷键，必须真正生效）
+    if (e.key === '1') {
+      e.preventDefault()
+      layoutCtl.toggle('left')
+      return
+    }
+    if (e.shiftKey && (e.key === 'B' || e.key === 'b')) {
+      e.preventDefault()
+      layoutCtl.toggle('right')
+      return
+    }
     if (e.key === ',') {
       e.preventDefault()
       setSettingsOpen(true)
@@ -580,7 +622,7 @@ export default function App(): ReactElement {
         if (dirty) setError('有未保存修改，请先保存再关闭')
         else {
           setActive(null)
-          setMode('edit')
+          setEditorMode({ mode: 'edit', source: false })
         }
         break
       case 'export-pdf':
@@ -615,8 +657,7 @@ export default function App(): ReactElement {
         else setError('请先打开一篇题解')
         break
       case 'source-mode':
-        if (active && mode !== 'edit') setMode('edit')
-        setSourceOpen((v) => !v)
+        toggleSource()
         break
       case 'docs-list':
         layoutCtl.toggle('left')
@@ -726,55 +767,87 @@ export default function App(): ReactElement {
             )}
           </header>
 
-          <section className="min-h-0 flex-1 bg-neutral-950">
+          <section className="relative min-h-0 flex-1 bg-neutral-950">
             {active ? (
-              mode === 'edit' ? (
-                sourceOpen ? (
-                  <textarea
-                    value={active.md}
-                    spellCheck={false}
-                    onChange={(e) => {
-                      setActive((p) => (p ? { ...p, md: e.target.value } : p))
-                      setDirty(true)
-                    }}
-                    className="block h-full w-full resize-none bg-neutral-950 p-4 font-mono text-[13px] leading-relaxed text-neutral-200 focus:outline-none"
-                  />
+              <>
+                <ReadToggle mode={mode} onToggle={toggleMode} />
+                {mode === 'edit' ? (
+                  sourceOpen ? (
+                    // SourceEditor 属 Task 10；本任务先保留原 textarea，行为不变
+                    <textarea
+                      value={active.md}
+                      spellCheck={false}
+                      onChange={(e) => {
+                        setActive((p) => (p ? { ...p, md: e.target.value } : p))
+                        setDirty(true)
+                      }}
+                      className="block h-full w-full resize-none bg-neutral-950 p-4 font-mono text-[13px] leading-relaxed text-neutral-200 focus:outline-none"
+                    />
+                  ) : (
+                    <EditorSurface
+                      md={active.md}
+                      editable
+                      onOpenContext={openEditorCtx}
+                      onDocChange={(md) => { setActive((p) => (p ? { ...p, md } : p)); setDirty(true) }}
+                    />
+                  )
                 ) : (
-                  <EditorSurface
-                    md={active.md}
-                    editable
-                    onOpenContext={openEditorCtx}
-                    onDocChange={(md) => { setActive((p) => (p ? { ...p, md } : p)); setDirty(true) }}
-                  />
-                )
-              ) : (
-                <div className="flex h-full">
-                  {toc.length > 0 && (
-                    <aside className="w-44 shrink-0 overflow-y-auto border-r border-neutral-800/70 px-3 py-3 text-xs">
-                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-600">大纲</p>
-                      {toc.map((item, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className="block w-full truncate rounded py-0.5 text-left text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
-                          style={{ paddingLeft: `${(item.depth - 1) * 10}px` }}
-                          onClick={() => {
-                            const el = Array.from(
-                              document.querySelectorAll('.ak-editor h1, .ak-editor h2, .ak-editor h3, .ak-editor h4, .ak-editor h5, .ak-editor h6')
-                            ).find((h) => h.textContent?.trim() === item.text)
-                            el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                          }}
-                        >
-                          {item.text}
-                        </button>
-                      ))}
-                    </aside>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <EditorSurface md={active.md} editable={false} />
+                  <div className="flex h-full">
+                    {/* 大纲：默认展开，可折叠（折叠状态仅会话内保留，不写盘） */}
+                    {toc.length > 0 && (
+                      <>
+                        {tocOpen ? (
+                          <aside className="w-44 shrink-0 overflow-y-auto border-r border-neutral-800/70 px-3 py-3 text-xs">
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-600">大纲</span>
+                              <button
+                                type="button"
+                                title="折叠大纲"
+                                onClick={() => setTocOpen(false)}
+                                className="rounded px-1 text-[11px] text-neutral-600 hover:bg-neutral-800 hover:text-neutral-300"
+                              >
+                                ⌃
+                              </button>
+                            </div>
+                            {toc.map((item, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                className="block w-full truncate rounded py-0.5 text-left text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100"
+                                style={{ paddingLeft: `${(item.depth - 1) * 10}px` }}
+                                onClick={() => {
+                                  const el = Array.from(
+                                    document.querySelectorAll('.ak-editor h1, .ak-editor h2, .ak-editor h3, .ak-editor h4, .ak-editor h5, .ak-editor h6')
+                                  ).find((h) => h.textContent?.trim() === item.text)
+                                  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                }}
+                              >
+                                {item.text}
+                              </button>
+                            ))}
+                          </aside>
+                        ) : (
+                          <button
+                            type="button"
+                            title="展开大纲"
+                            onClick={() => setTocOpen(true)}
+                            className="shrink-0 border-r border-neutral-800/70 px-1 py-3 text-[11px] text-neutral-600 hover:bg-neutral-800 hover:text-neutral-300"
+                          >
+                            ⌄
+                          </button>
+                        )}
+                      </>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <EditorSurface md={active.md} editable={false} />
+                    </div>
                   </div>
-                </div>
-              )
+                )}
+                {/* 状态栏隐藏时，`</>` 悬浮在编辑区左下角（父 section 已 relative） */}
+                {!showStatus && mode === 'edit' && (
+                  <SourceToggle floating active={sourceOpen} disabled={false} onToggle={toggleSource} />
+                )}
+              </>
             ) : (
               <div className="flex h-full items-center justify-center text-sm text-neutral-600">
                 AlgoKeeper · 选择或新建一篇题解
@@ -795,16 +868,17 @@ export default function App(): ReactElement {
         }
       />
 
-      <footer
-        className={`${showStatus ? '' : 'hidden'} flex items-center gap-4 border-t border-neutral-800 bg-neutral-900/80 px-4 py-1 text-[11px] text-neutral-500`}
-      >
-        <span className="flex items-center gap-1">
-          {dirty ? <span className="h-2 w-2 rounded-full bg-amber-400" /> : <span className="h-2 w-2 rounded-full bg-emerald-500" />}
-          {savedAt ? `最近保存 ${savedAt}` : dirty ? '有未保存修改' : '已同步'}
-        </span>
-        <span>{wordCount} 字</span>
-        <span className="ml-auto">Electron {window.api?.versions.electron ?? '-'}</span>
-      </footer>
+      {showStatus ? (
+        <StatusBar
+          dirty={dirty}
+          savedAt={savedAt}
+          wordCount={wordCount}
+          electronVersion={window.api?.versions.electron ?? '-'}
+          source={sourceOpen}
+          canUseSource={mode === 'edit'}
+          onToggleSource={toggleSource}
+        />
+      ) : null}
 
       {captureOpen && <QuickCaptureDialog onClose={() => setCaptureOpen(false)} onCreated={onCreated} />}
       {saveAsOpen && active && (
