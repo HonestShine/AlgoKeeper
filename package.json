@@ -1,6 +1,6 @@
 {
   "name": "algokeeper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AlgoKeeper - 本地优先的算法题解记录 + 间隔重复复习桌面应用",
   "main": "./out/main/index.js",
   "author": "AlgoKeeper",
