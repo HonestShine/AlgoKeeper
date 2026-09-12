@@ -13,14 +13,17 @@ export function isSourceEditable(s: EditorModeState): boolean {
   return s.mode === 'edit' && !s.source
 }
 
-export function setRead(_s: EditorModeState, on: boolean): EditorModeState {
+/** 进入/退出阅读态。阅读态与源码态互斥：置为阅读态时必然清掉 source。 */
+export function setRead(on: boolean): EditorModeState {
   return on ? { mode: 'read', source: false } : { mode: 'edit', source: false }
 }
 
-export function setSource(_s: EditorModeState, on: boolean): EditorModeState {
+/** 进入/退出源码态。进入源码态必然落回编辑态。 */
+export function setSource(on: boolean): EditorModeState {
   return on ? { mode: 'edit', source: true } : { mode: 'edit', source: false }
 }
 
+/** 编辑态 ⇄ 阅读态。源码态按此键会退出源码并进入阅读态（见规格 §4.1）。 */
 export function toggleRead(s: EditorModeState): EditorModeState {
-  return setRead(s, s.mode !== 'read')
+  return setRead(s.mode !== 'read')
 }
