@@ -3,7 +3,7 @@
  * 工作台三栏重构（P1）的可复跑交付验证。
  *
  * 覆盖：A 三栏骨架与分隔条 / B 排版体系 / C 模式与控件 / D 复习统计（真机端到端）/
- *       E CodeMirror 源码模式。
+ *       E CodeMirror 源码模式 / F 静默丢字（C1 写窗的零延迟路径）。
  *
  * 与一次性脚本的关键差别（前 10 轮的教训固化在这里）：
  * 1) 自己先 `npm run build`，再断言 `out/renderer/assets/*.js` 的 mtime 晚于 `src/` 最新改动。
@@ -12,7 +12,8 @@
  *    不读写真实 %APPDATA%/algokeeper，也不触碰仓库的 Documents/。
  * 3) 断言必须有判别力：每条都要能回答「把对应修复回退，这条会红吗」。
  *    尤其：源码态进入后**不点击**直接打字 / 直接 Ctrl+F；滚动比例与模式绕行；
- *    切笔记后 Ctrl+Z 不串写（含落盘复核）；复习统计走真实主进程读盘。
+ *    切笔记后 Ctrl+Z 不串写（含落盘复核）；复习统计走真实主进程读盘；
+ *    F 节的**零延迟**键入路径（sleep 只用于等 UI 稳定，绝不用来掩盖竞态窗口）。
  *
  * 注意：scripts/ 受 eslint 覆盖，本文件不得出现字面不可见字符
  * （需要测 .cm-specialChar 时用 String.fromCharCode(0xad) 构造软连字符）。
@@ -40,10 +41,27 @@ const DIVIDER_TOTAL = 2
 
 const sleep = (ms) => new Promise((r) => globalThis.setTimeout(r, ms))
 
+/**
+ * 轮询等待：反复取样直到 pred(v) 成立或超时，返回最后一次取样值。
+ * 几何/异步落盘类断言一律用它 —— 固定 sleep 在慢机器上会随机红，而竞态窗口
+ * 又绝不能用 sleep 掩盖（那正是原脚本 600ms 恰好绕开 C1 窗口、182/182 全绿却
+ * 抓不到丢字的原因）。sleep 只作为兜底。
+ */
+async function pollUntil(sample, pred, timeout = 6000, interval = 120) {
+  const deadline = Date.now() + timeout
+  for (;;) {
+    const v = await sample()
+    if (pred(v)) return v
+    if (Date.now() >= deadline) return v
+    await sleep(interval)
+  }
+}
+
 // ---- 轻量过滤 ------------------------------------------------------------
 // 默认全跑；判别性自证（变异某一处修复后看对应断言是否变红）时用它压成本：
 //   node scripts/verify-workbench.mjs --only=E            只跑 E 节
 //   node scripts/verify-workbench.mjs --only=A,E          只跑 A + E
+//   node scripts/verify-workbench.mjs --only=F            只跑 F 节（静默丢字 C1 的三条零延迟断言）
 //   node scripts/verify-workbench.mjs --grep=滚动比例      只记录 label 匹配的断言（分节仍会执行）
 // 构建守卫与隔离环境不受过滤影响，始终生效。
 const argv = process.argv.slice(2)
@@ -253,6 +271,45 @@ const wideMd =
     ''
   ].join('\n')
 
+// B 组「超长单行代码块」的真机种子：一行远超正文宽度（800px ≈ 100 字符）的代码。
+// 用来测 `.ak-editor pre{overflow-x:auto}` 这条真正承重的规则 —— 原来那条
+// `max-width: none` 断言没有判别力（max-width 初始值就是 none）。
+const LONG_CODE_LINE =
+  'const result = ' + Array.from({ length: 40 }, (_, i) => `value${i}`).join(' + ') + ' // 超长单行注释，用于验证代码块内部的横向滚动'
+/** 无任何断点的超长 token（连 word-break 都只能靠 overflow-wrap:anywhere 才断得开） */
+const LONG_TOKEN_LINE = 'const akUnbreakableToken = ' + 'z'.repeat(260)
+const wideCodeMd =
+  fm([
+    'source: leetcode',
+    'id: wide-code',
+    'title: 长行代码验证 Wide Code',
+    'difficulty: Easy',
+    'tags: [verify]',
+    'status: active',
+    'aliases: []',
+    'created: 2026-09-12T10:00:00.000Z',
+    'updated: 2026-09-12T10:00:00.000Z'
+  ]) +
+  ['# 长行代码验证 Wide Code', '', '```ts', LONG_CODE_LINE, LONG_TOKEN_LINE, '```', '', '尾段占位。', ''].join('\n')
+
+// F 组脚注种子：验证「文本 `[^n]` → Footnote 节点」的转换在预检谓词改造后仍然生效
+// （C1 的修复把「是否武装写窗」与「是否会真的 dispatch」绑成同一个谓词，这条是它的正对照）。
+// 注意这里**不写** `[^1]: 定义。`：markdown-it 会把「引用 + 定义」整体解析成 reference link
+// （实测 `[^1]` 变成 <a href="...">^1</a>），文本节点里就没有 `[^n]` 了，转换自然不会触发。
+// 无定义的 `[^n]` 才是这条转换真正的目标（也与「用户直接键入 [^n]」同形）。
+const footnoteMd =
+  fm([
+    'source: leetcode',
+    'id: footnote-ref',
+    'title: 脚注验证 Footnote Ref',
+    'difficulty: Easy',
+    'tags: [verify]',
+    'status: active',
+    'aliases: []',
+    'created: 2026-09-12T10:00:00.000Z',
+    'updated: 2026-09-12T10:00:00.000Z'
+  ]) + ['# 脚注验证 Footnote Ref', '', '这里有脚注引用[^1]，后面还有正文。', ''].join('\n')
+
 // D 组：复习统计三分支的真机种子（走真实主进程 readNote，不经假后端）
 const schedFullMd =
   fm([
@@ -306,6 +363,8 @@ for (const [name, body] of [
   ['two-sum.md', twoSumMd],
   ['lru-cache.md', lruMd],
   ['wide-table.md', wideMd],
+  ['wide-code.md', wideCodeMd],
+  ['footnote-ref.md', footnoteMd],
   ['sched-full.md', schedFullMd],
   ['sched-none.md', schedNoneMd],
   ['sched-partial.md', schedPartialMd]
@@ -482,7 +541,11 @@ await runSection('A 三栏工作台', async () => {
 
   const { app, page, profile } = await openApp({ theme: 'light-github', size: [1500, 1000] })
   try {
-    let p = await probe(page)
+    // 几何断言等条件成立：首帧布局与偏好读出都可能比固定 sleep 慢（慢机器上会随机红）
+    let p = await pollUntil(
+      () => probe(page),
+      (v) => v.leftWidth === DEFAULT_LEFT_WIDTH && v.rightWidth === DEFAULT_RIGHT_WIDTH
+    )
     check(
       `初始左栏宽 ${DEFAULT_LEFT_WIDTH} / 右栏宽 ${DEFAULT_RIGHT_WIDTH}`,
       p.leftWidth === DEFAULT_LEFT_WIDTH && p.rightWidth === DEFAULT_RIGHT_WIDTH,
@@ -656,14 +719,21 @@ await runSection('A 三栏工作台', async () => {
 
     // ---- D5：Ctrl+1 / Ctrl+Shift+B ----
     {
+      // 「Ctrl+Shift+1 不折叠左栏」单独断言没有判别力：US 布局下 Shift+1 的 e.key 恒为 '!'，
+      // 于是即使删掉源码里的 !e.shiftKey 守卫这条也依旧绿（真正的隔离来自 e.key）。
+      // 因此与「同一时刻 Ctrl+1 必须真的折叠」成对断言：判别力来自这条正对照 ——
+      // 若有人把键位改成按 e.code==='Digit1' 判定（Ctrl+Shift+1 会一起命中），本组必红。
       await page.keyboard.press('Control+Shift+1')
       await sleep(500)
-      p = await probe(page)
-      check('Ctrl+Shift+1 不触发左栏折叠（Ctrl+1 分支不吞掉带修饰的键）', p.hasLeftPanel && p.rails.length === 0, JSON.stringify(p))
-
+      const afterShift1 = await probe(page)
       await page.keyboard.press('Control+1')
       await sleep(500)
       p = await probe(page)
+      check(
+        'Ctrl+Shift+1 不折叠左栏、而 Ctrl+1 折叠（带修饰键与 Ctrl+1 可区分）',
+        afterShift1.hasLeftPanel && afterShift1.rails.length === 0 && !p.hasLeftPanel && p.rails.length === 1,
+        JSON.stringify({ shift1: afterShift1.rails, ctrl1: p.rails })
+      )
       check(
         'Ctrl+1 折叠左栏（tooltip 展开左栏 Ctrl+1）',
         !p.hasLeftPanel && p.rails.length === 1 && p.rails[0].title === '展开左栏 Ctrl+1',
@@ -709,19 +779,23 @@ await runSection('A 三栏工作台', async () => {
     await app.close()
     const revived = await openApp({ profile, size: [1500, 1000] })
     try {
-      const p2 = await revived.page.evaluate(() => {
-        const left = document.querySelector('button[title="折叠左栏 Ctrl+1"]')
-        const main = document.querySelector('main')
-        return {
-          leftWidth: left ? Math.round(left.parentElement.parentElement.getBoundingClientRect().width) : null,
-          hasRightPanel: !!document.querySelector('button[title="折叠右栏 Ctrl+Shift+B"]'),
-          rails: [...document.querySelectorAll('button[title^="展开"]')].map((b) => ({
-            title: b.getAttribute('title'),
-            w: Math.round(b.parentElement.getBoundingClientRect().width)
-          })),
-          centerWidth: main ? Math.round(main.getBoundingClientRect().width) : null
-        }
-      })
+      const p2 = await pollUntil(
+        () =>
+          revived.page.evaluate(() => {
+            const left = document.querySelector('button[title="折叠左栏 Ctrl+1"]')
+            const main = document.querySelector('main')
+            return {
+              leftWidth: left ? Math.round(left.parentElement.parentElement.getBoundingClientRect().width) : null,
+              hasRightPanel: !!document.querySelector('button[title="折叠右栏 Ctrl+Shift+B"]'),
+              rails: [...document.querySelectorAll('button[title^="展开"]')].map((b) => ({
+                title: b.getAttribute('title'),
+                w: Math.round(b.parentElement.getBoundingClientRect().width)
+              })),
+              centerWidth: main ? Math.round(main.getBoundingClientRect().width) : null
+            }
+          }),
+        (v) => v.leftWidth === DEFAULT_LEFT_WIDTH + 64 && v.hasRightPanel === false
+      )
       check('同一 profile 二次启动：左栏宽度保持', p2.leftWidth === DEFAULT_LEFT_WIDTH + 64, `实际 ${p2.leftWidth}`)
       check(
         '同一 profile 二次启动：右栏折叠状态保持（渲染为 rail）',
@@ -800,13 +874,20 @@ await runSection('B 排版', async () => {
         }
       })()
 
+    // 三档宽度是几何断言：用轮询等「该档的宽度真的生效」而不是固定 sleep(400)
+    const wantWidth = { narrow: 680, medium: 800 }
     const probes = []
     for (const v of ['narrow', 'medium', 'full']) {
       await page.evaluate((val) => {
         document.documentElement.dataset.contentWidth = val
       }, v)
-      await sleep(400)
-      probes.push(await page.evaluate(measurePage, v))
+      const want = wantWidth[v]
+      probes.push(
+        await pollUntil(
+          () => page.evaluate(measurePage, v),
+          (m) => (want === undefined ? m.pageWidth === m.avail : m.pageWidth === want)
+        )
+      )
     }
     const [narrow, medium, full] = probes
     check('narrow 变量解析为 680px', narrow.cssVar === '680px', narrow.cssVar)
@@ -831,8 +912,11 @@ await runSection('B 排版', async () => {
     await page.keyboard.press('Control+e')
     await sleep(1200)
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1900, 1000))
-    await sleep(800)
-    const readPage = await page.evaluate(measurePage, 'medium-read')
+    // 窗口 resize 后的重排 + 阅读态 .ak-page 生效都要等条件成立（原来固定 sleep(800)）
+    const readPage = await pollUntil(
+      () => page.evaluate(measurePage, 'medium-read'),
+      (m) => m.avail > 800 && m.pageWidth === 800 && Math.abs(m.gapL - m.gapR) <= 1
+    )
     check(
       '阅读态：.ak-page 同样限宽 800px 且居中',
       readPage.avail > 800 && readPage.pageWidth === 800 && Math.abs(readPage.gapL - readPage.gapR) <= 1,
@@ -841,15 +925,66 @@ await runSection('B 排版', async () => {
     await page.keyboard.press('Control+e')
     await sleep(900)
 
-    // ---- 代码块不跟随压缩 ----
+    // ---- 代码块排版 ----
+    // 注：原先还有一条「代码块 max-width: none」——已删除。max-width 的初始值就是
+    // none，删掉 main.css 里那条声明它照样恒绿（空洞断言）。真正承重的是
+    // `.ak-editor pre{overflow-x:auto}`（main.css:80），下面用一段真实超宽的单行
+    // 代码把它测出来。
     const preProbe = await page.evaluate(() => {
       const pre = document.querySelector('.ak-editor pre')
       if (!pre) return null
       const cs = getComputedStyle(pre)
-      return { maxWidth: cs.maxWidth, borderRadius: cs.borderRadius, padding: cs.padding }
+      return { borderRadius: cs.borderRadius, padding: cs.padding }
     })
-    check('代码块 max-width: none（不跟随正文压缩）', preProbe && preProbe.maxWidth === 'none', preProbe?.maxWidth)
     check('代码块 border-radius 8px', preProbe && preProbe.borderRadius === '8px', preProbe?.borderRadius)
+
+    // ---- 超长单行代码块：折行必须被自身消化，且不把外层撑宽 ----
+    // 实测结论（本组断言的由来）：`.ak-editor pre{overflow-x:auto}`（main.css:80）在本仓库的
+    // 排版下是**惰性的** —— `.ak-editor{word-break:break-word}`（main.css:24，word-break 可继承）
+    // 会把任何超长 token 直接断开，代码块因此永远不产生横向溢出（实测 pre scrollWidth ===
+    // clientWidth === 799，含 368 字符长行与 260 字符无断点 token 各一条）。
+    // 所以这里不写「断言 pre 内部横滚」那种构造不出来的断言，而是钉住真正可观测、
+    // 且一旦排版被改坏就会变红的两条不变量：超长行被折行消化在块内 + 外层不出现横向滚动。
+    await openNote(page, /长行代码验证/)
+    const longPre = await page.evaluate(() => {
+      const pre = document.querySelector('.ak-editor pre')
+      const scroller = pre?.closest('.ak-scroll')
+      const page = document.querySelector('.ak-page')
+      if (!pre || !scroller || !page) return { found: false }
+      const preCs = getComputedStyle(pre)
+      return {
+        found: true,
+        overflowX: preCs.overflowX,
+        wordBreak: preCs.wordBreak,
+        whiteSpace: preCs.whiteSpace,
+        // 视觉行数：>1 说明超长行是被「折行」消化掉的，而不是横向溢出
+        visualLines: preCs.lineHeight ? Math.round(pre.getBoundingClientRect().height / parseFloat(preCs.lineHeight)) : -1,
+        pageWidth: Math.round(page.getBoundingClientRect().width),
+        preClientWidth: pre.clientWidth,
+        preScrollWidth: pre.scrollWidth,
+        textLength: (pre.textContent ?? '').length,
+        overflowWrap: preCs.overflowWrap,
+        maxDescRight: Math.round(Math.max(0, ...[...pre.querySelectorAll('*')].map((e) => e.getBoundingClientRect().right)) - pre.getBoundingClientRect().left),
+        scrollerClientWidth: scroller.clientWidth,
+        scrollerScrollWidth: scroller.scrollWidth,
+        scrollerOverflows: scroller.scrollWidth > scroller.clientWidth + 1
+      }
+    })
+    check(
+      '超长代码行确实需要折行消化（前提成立，否则本组无意义）',
+      longPre.found && longPre.visualLines >= 4,
+      `视觉行数 ${longPre?.visualLines}（white-space=${longPre?.whiteSpace} word-break=${longPre?.wordBreak}）`
+    )
+    check(
+      '代码块宽度撑满正文（不跟随正文压缩、不被压窄 —— max-width:none 的可观测等价物）',
+      longPre.found && longPre.pageWidth - longPre.preClientWidth <= 4,
+      `pre ${longPre?.preClientWidth} vs 正文 ${longPre?.pageWidth}`
+    )
+    check(
+      '超长代码行不溢出代码块、也不把外层 .ak-scroll 撑出横向滚动',
+      longPre.found && longPre.preScrollWidth <= longPre.preClientWidth + 1 && longPre.scrollerOverflows === false,
+      `pre scroll=${longPre?.preScrollWidth}/client=${longPre?.preClientWidth} scroller=${longPre?.scrollerScrollWidth}/${longPre?.scrollerClientWidth} 文本 ${longPre?.textLength} 字 overflow-wrap=${longPre?.overflowWrap} 最右后代=${longPre?.maxDescRight}`
+    )
 
     // ---- 表格：表头着色 + 斑马纹相位 ----
     await openNote(page, /LRU/)
@@ -877,7 +1012,6 @@ await runSection('B 排版', async () => {
       const res = {
         hasThead: !!table.querySelector('thead'),
         theadThCount: table.querySelectorAll('thead th').length,
-        tableMaxWidth: cs(table).maxWidth,
         tableFontSize: cs(table).fontSize,
         dark: readIn('dark'),
         light: readIn('light-github')
@@ -886,7 +1020,9 @@ await runSection('B 排版', async () => {
       else document.documentElement.dataset.theme = origTheme
       return res
     })
-    check('表格 max-width: none', tableProbe && tableProbe.tableMaxWidth === 'none', tableProbe?.tableMaxWidth)
+    // 注：原先的「表格 max-width: none」已删除 —— 同为空洞断言（max-width 初始值就是
+    // none）。表格的横向滚动归属由下面「超宽表格的横向滚动归属」四条实测覆盖
+    // （可编辑态 + 只读态：.tableWrapper 内横滚 + 外层 .ak-scroll 不横滚）。
     check('表格字号 13px', tableProbe && tableProbe.tableFontSize === '13px', tableProbe?.tableFontSize)
     check(
       '确认 DOM 无 thead（ProseMirror 恒产出 tbody，表头行是 tbody 首行且全为 TH）',
@@ -1314,12 +1450,18 @@ await runSection('E 源码模式', async () => {
       await page.mouse.click(pos.x, pos.y)
       await sleep(300)
       await page.keyboard.press('Control+Space')
-      await sleep(1000)
-      const out = await page.evaluate(() => {
-        const t = document.querySelector('.cm-tooltip')
-        if (!t) return { found: false }
-        return { found: true, cls: t.className, bg: getComputedStyle(t).backgroundColor, hasArrow: !!t.querySelector('.cm-tooltip-arrow') }
-      })
+      // 原来是固定 sleep(1000)：补全源经 @codemirror/lang-javascript 的**动态 import**
+      // 注册，冷缓存时可能超过 1s（慢机器上随机红）。改为轮询等 tooltip 出现，超时才算失败。
+      const out = await pollUntil(
+        () =>
+          page.evaluate(() => {
+            const t = document.querySelector('.cm-tooltip')
+            if (!t) return null
+            return { found: true, cls: t.className, bg: getComputedStyle(t).backgroundColor, hasArrow: !!t.querySelector('.cm-tooltip-arrow') }
+          }),
+        (v) => v !== null,
+        4000
+      ) ?? { found: false }
       await page.keyboard.press('Escape')
       await sleep(300)
       return out
@@ -1372,12 +1514,15 @@ await runSection('E 源码模式', async () => {
     // 面板没出现时不硬等（否则 fill 超时会抛错、整节中断，后面所有断言都跑不到，
     // 判别性自证就没法看到「目标断言之外还有什么跟着红」）。断言本身不受影响。
     const searchInput = page.locator('.cm-search input').first()
+    let searchValue = null
     if (await searchInput.count()) {
       await searchInput.fill('twoSum')
       await sleep(400)
+      searchValue = await searchInput.inputValue()
     }
     f = await findProbe(page)
-    check('搜索面板可输入关键词（面板保持）', f.cmSearch === true, JSON.stringify(f))
+    // 关键词必须真的进了搜索框：只复述上一条的 cmSearch===true 等于没有断言
+    check('搜索面板可输入关键词（关键词真的进入搜索框且面板保持）', f.cmSearch === true && searchValue === 'twoSum', JSON.stringify({ ...f, value: searchValue }))
     await page.keyboard.press('Escape')
     await sleep(400)
     check('F2：进入源码模式后「不点击直接打字」生效', (await readDoc()).includes('AKFOCUS'), '文档含 AKFOCUS')
@@ -1489,7 +1634,10 @@ await runSection('E 源码模式', async () => {
     await page.getByRole('button', { name: /LRU/ }).first().click()
     await sleep(1800)
     a = await attrs(page)
-    check('（记录现状）切笔记会关闭源码模式（source 恒为 0）', a.source === '0', JSON.stringify(a))
+    const afterSwitch = await page.evaluate(() => ({ cm: !!document.querySelector('.cm-editor') }))
+    // 规格 §4.1：source 是会话内临时态，任何模式切换（含切笔记）都清零 —— 断言的是
+    // 「与规格一致」，不是「记录现状」
+    check('切笔记后源码模式归零且 CodeMirror 卸载（规格 §4.1：source 为会话内临时态）', a.source === '0' && afterSwitch.cm === false, JSON.stringify({ ...a, cm: afterSwitch.cm }))
 
     // 重新进源码：焦点由 mount 时的 view.focus() 提供，全程不点击
     await page.keyboard.press('Control+/')
@@ -1811,7 +1959,6 @@ await runSection('E 源码模式', async () => {
     await page.keyboard.press('Enter')
     await sleep(600)
     await insertText('AKBOLD')
-    const boldDoc = await readDoc()
     await page.locator('.cm-content').click()
     await sleep(200)
     await page.keyboard.press('Control+b')
@@ -1821,11 +1968,182 @@ await runSection('E 源码模式', async () => {
       wys: !!document.querySelector('section .ak-editor'),
       source: document.documentElement.dataset.source
     }))
+    // 必须在按 Ctrl+B **之后**再读一次文档：原来读的是按之前的内容，
+    // `!boldDoc.includes('**AKBOLD**')` 恒真，等于没有断言。
+    const boldDocAfter = await readDoc()
     check(
-      '源码模式 Ctrl+B 不触发 WYSIWYG 加粗（仍在 CodeMirror，无 .ak-editor）',
-      boldAfter.cm === true && boldAfter.wys === false && boldAfter.source === '1' && !boldDoc.includes('**AKBOLD**'),
-      JSON.stringify(boldAfter)
+      '源码模式 Ctrl+B 不触发 WYSIWYG 加粗（仍在 CodeMirror，无 .ak-editor，文档未被加上 ** 标记）',
+      boldAfter.cm === true &&
+        boldAfter.wys === false &&
+        boldAfter.source === '1' &&
+        boldDocAfter.includes('AKBOLD') &&
+        !boldDocAfter.includes('**AKBOLD**'),
+      JSON.stringify({ ...boldAfter, plain: boldDocAfter.includes('AKBOLD'), bolded: boldDocAfter.includes('**AKBOLD**') })
     )
+  } finally {
+    await app.close()
+  }
+})
+
+// ============================================================================
+// F. 静默丢字（C1）：程序性写窗被「每次上报都重新武装」时，窗口内紧随的用户键入
+//    会被 onUpdate 直接吞掉、永不进入 active.md。
+//    E 节的 insertText 后面固定 sleep(600)、openNote 固定 sleep(1500)，恰好都绕开了
+//    这个 300ms 窗口 —— 所以 182/182 全绿也抓不到它。本节的共同前提是**零延迟**：
+//    键入后立刻 Ctrl+S / Ctrl+/ / 读状态栏，中间不许有任何 sleep
+//    （sleep 只用于等 UI 稳定，绝不用于掩盖竞态窗口）。
+// ============================================================================
+await runSection('F 静默丢字', async () => {
+  const { app, page } = await openApp({ theme: 'dark', size: [1600, 1000] })
+  try {
+    const readWys = () => page.evaluate(() => document.querySelector('.ak-editor .ProseMirror')?.textContent ?? '')
+    /** 全量读取源码态文档（走剪贴板：.cm-content 的 textContent 只含视口内已渲染的行） */
+    const readSrcDoc = async () => {
+      await page.locator('.cm-content').click()
+      await sleep(200)
+      await page.keyboard.press('Control+a')
+      await page.keyboard.press('Control+c')
+      await sleep(300)
+      return app.evaluate(({ clipboard }) => clipboard.readText())
+    }
+    const readNoteFile = async (name) => {
+      try {
+        return await fs.readFile(join(srcDir, name), 'utf8')
+      } catch {
+        return ''
+      }
+    }
+    /**
+     * 慢速敲入：**每字之间** 400ms（>300ms 写窗 ⇒ 每一字都被上报，并各自重新武装窗口）。
+     * 注意末尾那字后面不能再 sleep —— 否则「上报后的重新武装」会在快速段到来前就过期，
+     * 复现窗口消失（这正是原脚本用 sleep 掩盖竞态的反面教材）。
+     */
+    const typeSlow = async (text) => {
+      for (let i = 0; i < text.length; i++) {
+        if (i > 0) await sleep(400)
+        await page.keyboard.insertText(text[i])
+      }
+    }
+    /**
+     * 快速段：慢速段结束后先等 FAST_GAP，让「上一字上报 → 重新武装」确实已经发生
+     * （React passive effect 通常几毫秒），同时仍留在 300ms 窗口内；随后零延迟连打。
+     * 修复前：这一串字全部被 onUpdate 吞掉（active.md 不再前进）；修复后：全部上报。
+     */
+    const FAST_GAP = 150
+    const typeFast = async (text) => {
+      await sleep(FAST_GAP)
+      for (const ch of text) await page.keyboard.insertText(ch)
+    }
+    const SLOW_A = 'AKC1A'
+    const SLOW_B = 'AKC1B'
+    const FAST = 'ZZ'
+    const statusText = () => page.evaluate(() => document.querySelector('footer')?.textContent ?? '')
+    /**
+     * 「打开笔记不得变脏」：等新笔记的编辑器挂载完并静置一拍再读状态栏。
+     * 程序性写入（setContent / setEditable / 脚注转换）都在挂载后的 effect 里同步发生；
+     * dirty 一旦被误报置真就会粘住（openNote 的 setDirty(false) 已经在挂载之前跑完），
+     * 故静置后再读一次即可判定。
+     */
+    const assertNotDirty = async (label) => {
+      await page.locator('.ak-editor .ProseMirror').waitFor({ timeout: 10000 })
+      await sleep(700)
+      const later = await statusText()
+      check(label, !later.includes('有未保存修改'), JSON.stringify(later.slice(0, 32)))
+    }
+
+    // ---- 脚注转换的正对照：预检谓词（是否武装写窗）与转换谓词同源后仍必须生效 ----
+    await openNote(page, /脚注验证/)
+    const fn = await pollUntil(
+      () =>
+        page.evaluate(() => {
+          const els = [...document.querySelectorAll('.ak-editor sup.ak-footnote')]
+          return { count: els.length, firstRef: els[0]?.getAttribute('data-fn') ?? null }
+        }),
+      (v) => v.count > 0,
+      3000
+    )
+    check('F 前置：文本 `[^1]` 仍被转成 Footnote 节点（预检谓词改造未破坏转换）', fn.count > 0 && fn.firstRef === '1', JSON.stringify(fn))
+    // 脚注笔记打开时会真的 dispatch 一次转换事务：写窗武装必须早于 dispatch，
+    // 否则这次程序性写入会被 onUpdate 收下 → 笔记刚打开就 dirty。
+    await assertNotDirty('F 前置：含脚注 token 的笔记打开后不变脏（转换事务被写窗吞掉，武装早于 dispatch）')
+
+    // ---- C1-a：慢速敲完立刻快速补字再 Ctrl+S → 补的字必须落盘 ----
+    await openNote(page, 'Two Sum 两数之和')
+    await page.keyboard.press('Control+s')
+    await sleep(1400)
+    await assertNotDirty('F 前置：打开普通笔记后不变脏（setContent/setEditable 的程序性写入未被误报）')
+    await page.locator('.ak-editor .ProseMirror').click()
+    await page.keyboard.press('Control+End')
+    await page.keyboard.press('Enter')
+    await typeSlow(SLOW_A)
+    await typeFast(FAST)
+    await page.keyboard.press('Control+s') // 零延迟：紧跟快速段
+    const savedHasFast = await pollUntil(
+      async () => (await readNoteFile('two-sum.md')).includes(SLOW_A + FAST),
+      (v) => v === true,
+      5000
+    )
+    check(
+      `C1-a 慢速敲完快速补字后立刻 Ctrl+S：补的字必须落盘（${SLOW_A}${FAST}）`,
+      savedHasFast === true,
+      `two-sum.md 含 ${SLOW_A}${FAST} = ${savedHasFast}`
+    )
+
+    // ---- C1-b：慢速敲完立刻快速补字再 Ctrl+/ → 源码文档不得吞掉刚打的字 ----
+    await page.locator('.ak-editor .ProseMirror').click()
+    await page.keyboard.press('Control+End')
+    await page.keyboard.press('Enter')
+    await typeSlow(SLOW_B)
+    await typeFast(FAST)
+    await page.keyboard.press('Control+/') // 零延迟：紧跟快速段
+    const srcDoc = await readSrcDoc()
+    check(
+      `C1-b 慢速敲完快速补字后立刻 Ctrl+/：源码文档必须含刚输入的字（${SLOW_B}${FAST}）`,
+      srcDoc.includes(SLOW_B + FAST),
+      `含 ${SLOW_B}${FAST} = ${srcDoc.includes(SLOW_B + FAST)}`
+    )
+    await page.keyboard.press('Control+/')
+    await sleep(1500)
+    const wysBack = await readWys()
+    check(
+      'C1-b 切回 WYSIWYG 后刚输入的字仍在（未被滞后 md 回灌覆盖）',
+      wysBack.includes(SLOW_B + FAST),
+      `含 ${SLOW_B}${FAST} = ${wysBack.includes(SLOW_B + FAST)}`
+    )
+
+    // ---- C1-c：切笔记后立刻敲字 → 不得「假绿」（状态栏已同步 + 保存菜单置灰）----
+    // 编辑器每次重挂都会（修复前）无条件武装 300ms 写窗，挂载窗口内的键入被吞：
+    // 编辑器里有这个字、active.md 里没有 —— 状态栏恒显示「已同步」、菜单「保存」置灰。
+    const C1C_MARK = 'AKC1C'
+    await page.getByRole('button', { name: /LRU/ }).first().click()
+    await page.locator('.ak-editor .ProseMirror').focus()
+    await page.keyboard.insertText(C1C_MARK) // 零延迟：不等待、不 sleep
+    // dirty 一旦被吞就不会自愈（不会有第二次上报），故这里轮询读状态不削弱判别力
+    const c1cStatus = await pollUntil(statusText, (t) => t.includes('有未保存修改'), 1500)
+    const c1cDoc = await readWys()
+    check(
+      'C1-c 前置：零延迟键入确实进入了编辑器（否则本组无意义）',
+      c1cDoc.includes(C1C_MARK),
+      `编辑器含 ${C1C_MARK} = ${c1cDoc.includes(C1C_MARK)}`
+    )
+    check(
+      'C1-c 切笔记后立刻敲字：状态栏不得显示「已同步」（键入未被静默吞掉）',
+      c1cStatus.includes('有未保存修改') && !c1cStatus.includes('已同步'),
+      JSON.stringify(c1cStatus.slice(0, 40))
+    )
+    await page.getByRole('button', { name: '文件', exact: true }).click()
+    await sleep(400)
+    const saveItem = await page.evaluate(() => {
+      const b = [...document.querySelectorAll('button')].find((x) => x.querySelector('span')?.textContent === '保存')
+      return b ? { disabled: b.disabled, label: b.textContent } : null
+    })
+    check('C1-c 保存菜单未置灰（dirty 为真，不是假绿）', saveItem !== null && saveItem.disabled === false, JSON.stringify(saveItem))
+    await closeMenus(page)
+    // 落盘复核：以 .md 文件为准 —— 键入真的进了 active.md 才可能被写进文件
+    // （也排除「dirty 恰好被别的路径置真、状态栏断言侥幸通过」这一种假绿）
+    await page.keyboard.press('Control+s')
+    const c1cSaved = await pollUntil(async () => (await readNoteFile('lru-cache.md')).includes(C1C_MARK), (v) => v === true, 5000)
+    check(`C1-c 落盘复核：Ctrl+S 后 lru-cache.md 含该字符（${C1C_MARK}）`, c1cSaved === true, `含 ${C1C_MARK} = ${c1cSaved}`)
   } finally {
     await app.close()
   }
