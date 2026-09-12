@@ -40,12 +40,42 @@ const DIVIDER_TOTAL = 2
 
 const sleep = (ms) => new Promise((r) => globalThis.setTimeout(r, ms))
 
+// ---- 轻量过滤 ------------------------------------------------------------
+// 默认全跑；判别性自证（变异某一处修复后看对应断言是否变红）时用它压成本：
+//   node scripts/verify-workbench.mjs --only=E            只跑 E 节
+//   node scripts/verify-workbench.mjs --only=A,E          只跑 A + E
+//   node scripts/verify-workbench.mjs --grep=滚动比例      只记录 label 匹配的断言（分节仍会执行）
+// 构建守卫与隔离环境不受过滤影响，始终生效。
+const argv = process.argv.slice(2)
+const argOf = (name) => {
+  const hit = argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`))
+  if (!hit) return null
+  const eq = hit.indexOf('=')
+  return eq === -1 ? '' : hit.slice(eq + 1)
+}
+const onlyRaw = argOf('only')
+const onlyKeys = onlyRaw
+  ? onlyRaw
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean)
+  : null
+const grepRaw = argOf('grep')
+const grepRe = grepRaw ? new RegExp(grepRaw) : null
+const sectionKey = (name) => (name.trim().split(/\s+/)[0] ?? '').toUpperCase()
+const skippedSections = []
+const skippedChecks = []
+
 const results = []
 let currentSection = '(未分节)'
 function setSection(name) {
   currentSection = name
 }
 function check(label, ok, detail) {
+  if (grepRe && !grepRe.test(label)) {
+    skippedChecks.push(label)
+    return
+  }
   results.push({ section: currentSection, label, ok, detail })
   console.log(`${ok ? '✔' : '✘'} [${currentSection}] ${label}${detail !== undefined ? ' — ' + detail : ''}`)
 }
@@ -304,6 +334,11 @@ async function openApp(opts = {}) {
 }
 
 async function runSection(name, fn) {
+  if (onlyKeys && !onlyKeys.includes(sectionKey(name))) {
+    skippedSections.push(name)
+    console.log(`\n-------- ${name} -------- (--only 过滤，跳过)`)
+    return
+  }
   setSection(name)
   console.log(`\n-------- ${name} --------`)
   try {
@@ -1334,8 +1369,13 @@ await runSection('E 源码模式', async () => {
       f.cmSearch === true && f.dialog === false,
       JSON.stringify(f)
     )
-    await page.locator('.cm-search input').first().fill('twoSum')
-    await sleep(400)
+    // 面板没出现时不硬等（否则 fill 超时会抛错、整节中断，后面所有断言都跑不到，
+    // 判别性自证就没法看到「目标断言之外还有什么跟着红」）。断言本身不受影响。
+    const searchInput = page.locator('.cm-search input').first()
+    if (await searchInput.count()) {
+      await searchInput.fill('twoSum')
+      await sleep(400)
+    }
     f = await findProbe(page)
     check('搜索面板可输入关键词（面板保持）', f.cmSearch === true, JSON.stringify(f))
     await page.keyboard.press('Escape')
@@ -1801,6 +1841,8 @@ for (const d of tempDirs) {
 }
 
 const failed = results.filter((r) => !r.ok)
+if (onlyKeys) console.log(`\n[过滤] --only=${onlyKeys.join(',')}；跳过的分节：${skippedSections.join(' / ') || '(无)'}`)
+if (grepRe) console.log(`[过滤] --grep=/${grepRe.source}/；未记录的断言 ${skippedChecks.length} 条`)
 console.log(`\n==== ${results.length - failed.length}/${results.length} 通过 ====`)
 if (failed.length) {
   console.log('\n失败项清单:')
