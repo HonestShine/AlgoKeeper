@@ -68,7 +68,18 @@ export function installFakeApi(): RendererApi {
   const read = (noteId: string): LoadedNote => {
     const found = notes.find((n) => n.noteId === noteId)
     if (!found) throw Object.assign(new Error(`笔记不存在: ${noteId}`), { code: 'note.not-found' })
-    return { noteId: found.noteId, filePath: `<virtual>/${noteId}.md`, meta: { ...found.meta }, bodyMd: found.bodyMd, warnings: [] }
+    // 与真实主进程 note-store.readNote 同语义：把 scheduling 透出（键不存在 ≠ 值为 undefined）。
+    // 不透出的话，网页假后端路径下「复习统计」恒显示「尚未复习（新卡）」——
+    // 即使刚做完复习（commit 已写 alk:sched）也读不到。
+    const sched = readSched()[noteId]
+    return {
+      noteId: found.noteId,
+      filePath: `<virtual>/${noteId}.md`,
+      meta: { ...found.meta },
+      bodyMd: found.bodyMd,
+      warnings: [],
+      ...(sched ? { scheduling: sched } : {})
+    }
   }
 
   const summarize = (n: StoreNote) => ({
