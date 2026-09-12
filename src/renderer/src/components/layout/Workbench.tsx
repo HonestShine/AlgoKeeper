@@ -35,10 +35,13 @@ const SIDE_LABEL: Record<'left' | 'right', string> = { left: '左栏', right: '�
 export default function Workbench(p: WorkbenchProps): ReactElement {
   const hostRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<'left' | 'right' | null>(null)
-  // F4：折叠一栏会把分隔条（或栏头折叠按钮）卸载，浏览器于是把焦点丢给 <body>，
-  // 键盘用户再也回不到展开态。这里给 rail 的展开按钮留 ref，折叠后把焦点交给它。
+  // F4：折叠/展开一栏都会把「当前持有焦点的那个按钮」卸载（折叠卸载分隔条与栏头折叠按钮，
+  // 展开卸载 rail 及其展开按钮），浏览器于是把焦点丢给 <body>，键盘用户在两侧之间来回时
+  // 每转一次都要补按一次 Tab。这里给四个按钮留 ref，在两个方向上把焦点接回去。
   const leftExpandRef = useRef<HTMLButtonElement>(null)
   const rightExpandRef = useRef<HTMLButtonElement>(null)
+  const leftCollapseRef = useRef<HTMLButtonElement>(null)
+  const rightCollapseRef = useRef<HTMLButtonElement>(null)
   const prevVisible = useRef({ left: p.leftVisible, right: p.rightVisible })
   // 用户是否已经和界面交互过（用于区分「用户折叠」与「启动时异步载入偏好导致的折叠」）
   const interacted = useRef(false)
@@ -58,19 +61,24 @@ export default function Workbench(p: WorkbenchProps): ReactElement {
   useEffect(() => {
     const prev = prevVisible.current
     prevVisible.current = { left: p.leftVisible, right: p.rightVisible }
-    // 只在「展开 → 折叠」的转变上补焦：prevVisible 初值即当前值，挂载时不聚焦。
+    // 只在真实转变上补焦：prevVisible 初值即当前值，挂载时不聚焦。
     const collapsedLeft = prev.left && !p.leftVisible
     const collapsedRight = prev.right && !p.rightVisible
-    if (!collapsedLeft && !collapsedRight) return
+    const expandedLeft = !prev.left && p.leftVisible
+    const expandedRight = !prev.right && p.rightVisible
+    if (!collapsedLeft && !collapsedRight && !expandedLeft && !expandedRight) return
     // 启动时 settings.json 到位可能把原本默认展开的一栏折叠 —— 那不是用户操作，
     // 不该把焦点从别处抢过来（初始即为折叠态时不聚焦）。
     if (!interacted.current) return
     // 只有「确实因为被卸载而丢掉焦点」（activeElement 掉到 body / 已脱离文档）才补焦；
-    // 焦点还停在中栏输入框、正文或菜单项上时一律不抢。
+    // 焦点还停在中栏输入框、正文或菜单项上时一律不抢（例如用 Ctrl+1 展开时不要抢正文焦点）。
     const el = document.activeElement
     if (!(el === null || el === document.body || !el.isConnected)) return
+    // 折叠 → 焦点去 rail 的展开按钮；展开 → 焦点去栏头的折叠按钮（闭环两侧都能继续键盘操作）
     if (collapsedLeft) leftExpandRef.current?.focus()
-    else rightExpandRef.current?.focus()
+    else if (collapsedRight) rightExpandRef.current?.focus()
+    if (expandedLeft) leftCollapseRef.current?.focus()
+    else if (expandedRight) rightCollapseRef.current?.focus()
   }, [p.leftVisible, p.rightVisible])
 
   // 容器尺寸变化时重新解析宽度，保证正文始终有 MIN_CONTENT_WIDTH
@@ -216,6 +224,7 @@ export default function Workbench(p: WorkbenchProps): ReactElement {
 
   const collapseBtn = (side: 'left' | 'right'): ReactElement => (
     <button
+      ref={side === 'left' ? leftCollapseRef : rightCollapseRef}
       type="button"
       title={`折叠${SIDE_LABEL[side]} Ctrl+${side === 'left' ? '1' : 'Shift+B'}`}
       onClick={() => p.onToggle(side)}

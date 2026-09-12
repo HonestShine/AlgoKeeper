@@ -150,7 +150,11 @@ export default function App(): ReactElement {
 
   const toggleSource = useCallback((): void => {
     setEditorMode((s) => setSource(!s.source))
-  }, [])
+    // 从阅读态进源码态也是一次「阅读 → 编辑」转变，必须同步偏好，
+    // 否则 readMode 与实际模式分叉、下次打开笔记会莫名进阅读态。
+    // 副作用同样留在 updater 之外（理由见 toggleMode）。
+    if (mode === 'read') layoutCtl.set('readMode', false)
+  }, [layoutCtl, mode])
 
   const refreshDue = useCallback(async (): Promise<void> => {
     if (!api) return
@@ -277,7 +281,8 @@ export default function App(): ReactElement {
       return
     }
     // 左右栏折叠（Workbench 的 rail / 分隔条 tooltip 承诺的快捷键，必须真正生效）
-    if (e.key === '1') {
+    // !e.shiftKey：把 Ctrl+1 与后续的 Ctrl+Shift+1..6（标题快捷键）区分开
+    if (e.key === '1' && !e.shiftKey) {
       e.preventDefault()
       layoutCtl.toggle('left')
       return
@@ -843,7 +848,9 @@ export default function App(): ReactElement {
                     </div>
                   </div>
                 )}
-                {/* 状态栏隐藏时，`</>` 悬浮在编辑区左下角（父 section 已 relative） */}
+                {/* 状态栏隐藏时，`</>` 悬浮在编辑区左下角（父 section 已 relative）。
+                    浮动态只在编辑态渲染，故 disabled 恒为 false 是正确的；
+                    若将来放开 `mode === 'edit'` 条件，必须同步改为 disabled={mode !== 'edit'}。 */}
                 {!showStatus && mode === 'edit' && (
                   <SourceToggle floating active={sourceOpen} disabled={false} onToggle={toggleSource} />
                 )}

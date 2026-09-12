@@ -28,6 +28,8 @@ export default function ReadToggle({ mode, onToggle }: ReadToggleProps): ReactEl
     arm()
   }
 
+  // 静止悬停 / 键盘聚焦期间不再产生 mousemove，计时器仍会到点把 dim 置真；
+  // 故用 CSS 覆写兜底：指针在按钮上或键盘聚焦时恒为不透明。
   return (
     <button
       type="button"
@@ -37,7 +39,7 @@ export default function ReadToggle({ mode, onToggle }: ReadToggleProps): ReactEl
       onMouseMove={wake}
       onFocus={wake}
       className={`absolute right-3 top-3 z-20 rounded-full border border-neutral-700 bg-neutral-900/90 px-3 py-1 text-[11px] text-neutral-300 shadow-lg transition-opacity hover:border-sky-600 hover:text-sky-300 ${
-        dim ? 'opacity-40' : 'opacity-100'
+        dim ? 'opacity-40 hover:opacity-100 focus-visible:opacity-100' : 'opacity-100'
       }`}
     >
       {mode === 'read' ? '✏ 编辑' : '👁 阅读'}
