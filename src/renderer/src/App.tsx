@@ -13,6 +13,8 @@ import Dashboard from './components/dashboard/Dashboard'
 import ExportDialog from './components/export/ExportDialog'
 import FindReplaceDialog from './components/find/FindReplaceDialog'
 import OutlineDialog from './components/find/OutlineDialog'
+import Workbench from './components/layout/Workbench'
+import { useLayoutPrefs } from './hooks/useLayoutPrefs'
 import { parseToc } from '../../shared/utils/toc'
 import type { ExportFormat, RelatedNotes } from '../../shared/types/export'
 import { runEditorAction } from './lib/editor-actions'
@@ -54,8 +56,6 @@ export default function App(): ReactElement {
   const [dashboardOpen, setDashboardOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [related, setRelated] = useState<RelatedNotes | null>(null)
-  const [showSidebar, setShowSidebar] = useState(true)
-  const [showStatus, setShowStatus] = useState(true)
   const [exportFormat, setExportFormat] = useState<ExportFormat>('md')
   const [findOpen, setFindOpen] = useState(false)
   const [notice, setNotice] = useState('')
@@ -66,6 +66,11 @@ export default function App(): ReactElement {
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [tagDraft, setTagDraft] = useState('')
   const [openNoteId, setOpenNoteId] = useState<string | null>(null)
+  // 布局偏好（宽度 / 显隐 / 内容宽度…）：本地乐观更新 + 300ms 防抖持久化到 settings.json。
+  // 状态栏显隐与其它布局偏好同源，P2 的设置开关才有落点。
+  const layoutCtl = useLayoutPrefs(settings, setSettings)
+  const { layout } = layoutCtl
+  const showStatus = layout.showStatus
   const booted = useRef(false)
   const noticeTimer = useRef<number | null>(null)
 
@@ -238,37 +243,41 @@ export default function App(): ReactElement {
     })
   }, [api, save, openSaveAs, toggleMode, pickNewRoot, startReview])
 
-  // 全局快捷键（捕获阶段）
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      const ctrl = e.ctrlKey || e.metaKey
-      if (!ctrl || e.altKey) return
-      if (e.key === ',') {
-        e.preventDefault()
-        setSettingsOpen(true)
-      } else if (e.key === 'f' || e.key === 'F') {
-        e.preventDefault()
-        setFindOpen(true)
-      } else if (e.key === 'k' || e.key === 'K') {
-        e.preventDefault()
-        setSearchOpen(true)
-      } else if (e.shiftKey && (e.key === 'N' || e.key === 'n')) {
-        e.preventDefault()
-        setCaptureOpen(true)
-      } else if (e.shiftKey && (e.key === 'R' || e.key === 'r')) {
-        e.preventDefault()
-        startReview()
-      } else if (e.key === 's' || e.key === 'S') {
-        e.preventDefault()
-        void save()
-      } else if (e.key === 'e' || e.key === 'E') {
-        e.preventDefault()
-        toggleMode()
-      }
+  // 全局快捷键（捕获阶段）：只注册一次，通过 ref 读最新状态。
+  // 每次渲染都重新赋值 ref（而非在 effect 里赋值），保证 handler 拿到最新闭包；
+  // 这样依赖数组恒为空 —— 拖拽调宽期间每帧重渲染也不会反复重注册 window 监听器。
+  const hotkeyRef = useRef<(e: KeyboardEvent) => void>(() => undefined)
+  hotkeyRef.current = (e: KeyboardEvent): void => {
+    const ctrl = e.ctrlKey || e.metaKey
+    if (!ctrl || e.altKey) return
+    if (e.key === ',') {
+      e.preventDefault()
+      setSettingsOpen(true)
+    } else if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault()
+      setFindOpen(true)
+    } else if (e.key === 'k' || e.key === 'K') {
+      e.preventDefault()
+      setSearchOpen(true)
+    } else if (e.shiftKey && (e.key === 'N' || e.key === 'n')) {
+      e.preventDefault()
+      setCaptureOpen(true)
+    } else if (e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+      e.preventDefault()
+      startReview()
+    } else if (e.key === 's' || e.key === 'S') {
+      e.preventDefault()
+      void save()
+    } else if (e.key === 'e' || e.key === 'E') {
+      e.preventDefault()
+      toggleMode()
     }
+  }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => hotkeyRef.current(e)
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [save, toggleMode, startReview])
+  }, [])
 
   const onCreated = useCallback(
     (note: LoadedNote): void => {
@@ -615,7 +624,7 @@ export default function App(): ReactElement {
         setSourceOpen((v) => !v)
         break
       case 'docs-list':
-        setShowSidebar((v) => !v)
+        layoutCtl.toggle('left')
         break
       case 'find-open':
       case 'find-next':
@@ -625,10 +634,10 @@ export default function App(): ReactElement {
         break
       case 'toggle-filebar':
       case 'toggle-filetree':
-        setShowSidebar((v) => !v)
+        layoutCtl.toggle('left')
         break
       case 'toggle-statusbar':
-        setShowStatus((v) => !v)
+        layoutCtl.set('showStatus', !layout.showStatus)
         break
       case 'about':
         window.alert('AlgoKeeper v0.1 — 本地优先的算法题解记录 + SM-2 间隔重复桌面应用')
@@ -677,11 +686,16 @@ export default function App(): ReactElement {
         disabledKeys={dirty || saving ? [] : ['save']}
         onAction={handleMenuAction}
       />
-      <div className="flex min-h-0 flex-1">
-        <aside
-          className={`${showSidebar ? '' : 'hidden'} flex w-60 shrink-0 flex-col border-r border-neutral-800 bg-neutral-900/60`}
-          onContextMenu={openPaneCtx}
-        >
+      <Workbench
+        leftWidth={layout.leftWidth}
+        rightWidth={layout.rightWidth}
+        leftVisible={layout.leftVisible}
+        rightVisible={layout.rightVisible}
+        focusMode={layout.focusMode}
+        onWidthChange={layoutCtl.setWidth}
+        onToggle={layoutCtl.toggle}
+        left={
+          <div className="flex min-h-0 flex-1 flex-col" onContextMenu={openPaneCtx}>
           <div className="border-b border-neutral-800 px-3 py-2">
             <p className="truncate text-[11px] text-neutral-500" title={settings?.notesRoot}>
               {settings?.notesRoot}
@@ -729,10 +743,10 @@ export default function App(): ReactElement {
               </button>
             ))}
           </div>
-        </aside>
-
-        {/* 主区 */}
-        <main className="flex min-w-0 flex-1 flex-col">
+          </div>
+        }
+        center={
+          <>
           <header className="flex items-center gap-2 border-b border-neutral-800 px-3 py-1.5">
             {active ? (
               <>
@@ -811,10 +825,10 @@ export default function App(): ReactElement {
               </div>
             )}
           </section>
-        </main>
-
-        {/* 右栏 Inspector */}
-        <aside className="hidden w-64 shrink-0 flex-col overflow-y-auto border-l border-neutral-800 bg-neutral-900/60 p-3 md:flex">
+          </>
+        }
+        right={
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {active ? (
             <>
               <p className={labelCls}>难度</p>
@@ -930,8 +944,9 @@ export default function App(): ReactElement {
           ) : (
             <p className="text-xs text-neutral-600">选择题解查看与编辑元数据</p>
           )}
-        </aside>
-      </div>
+          </div>
+        }
+      />
 
       <footer
         className={`${showStatus ? '' : 'hidden'} flex items-center gap-4 border-t border-neutral-800 bg-neutral-900/80 px-4 py-1 text-[11px] text-neutral-500`}
